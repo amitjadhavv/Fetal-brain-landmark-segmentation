@@ -1,5 +1,5 @@
 import torch
-
+import torch.nn as nn
 def dice_loss(pred, target, smooth=1e-6):
     pred = torch.sigmoid(pred)  # Ensure predictions are probabilities
     intersection = (pred * target).sum(dim=(1, 2, 3))
@@ -53,3 +53,40 @@ def multi_class_dice_loss(pred, target, num_classes, smooth=1e-6):
         dice_loss += (1 - dice)
 
     return dice_loss / num_classes
+
+
+class MulticlassDiceLoss(nn.Module):
+    def __init__(self, smooth=1e-5, include_background=True):
+        super(MulticlassDiceLoss, self).__init__()
+        self.smooth = smooth
+        self.include_background = include_background
+
+    def forward(self, predictions, targets, num_classes):
+        """
+        :param predictions: Predicted tensor of shape (batch_size, num_classes, *spatial_dims)
+        :param targets: Ground truth tensor of shape (batch_size, *spatial_dims)
+        """
+
+        dice_loss = 0.0
+        valid_class_count = 0
+
+        for c in range(num_classes):
+            if not self.include_background and c == 0:
+                continue  # Skip background if not included
+
+            # Create binary mask for class `c`
+            pred_c = predictions[:, c]  # Shape: (batch_size, *spatial_dims)
+            target_c = (targets == c).float()  # Convert class labels to binary for class `c`
+
+            # Check if the class exists in the batch
+            if target_c.sum() > 0:
+                intersection = (pred_c * target_c).sum()  # Sum over spatial dims
+                union = pred_c.sum() + target_c.sum()
+
+                dice_score = (2.0 * intersection + self.smooth) / (union + self.smooth)
+                dice_loss += (1 - dice_score).mean()
+                valid_class_count += 1
+
+        if valid_class_count == 0:
+            return torch.tensor(0.0, device=predictions.device)  # Return 0 if no valid class
+        return dice_loss / valid_class_count

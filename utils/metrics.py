@@ -6,7 +6,6 @@ def dice_coefficient(pred, target, smooth=1e-6):
     dice = (2. * intersection + smooth) / (pred.sum(dim=(1, 2, 3)) + target.sum(dim=(1, 2, 3)) + smooth)
     return dice.mean().item()
 
-
 def multiclass_dice_coefficient(pred, target, num_classes, smooth=1e-6):
     """
     Computes the multi-class Dice coefficient.
@@ -40,4 +39,3 @@ def multiclass_dice_coefficient(pred, target, num_classes, smooth=1e-6):
 
     # Return mean Dice score across all classes
     return sum(dice_scores) / num_classes
-

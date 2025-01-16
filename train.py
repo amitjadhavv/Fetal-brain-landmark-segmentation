@@ -6,7 +6,7 @@ from models.VNet import VNet
 import torchio as tio
 import numpy as np
 from utils.support import EarlyStopping
-from utils.loss import multi_class_dice_loss
+from utils.loss import MulticlassDiceLoss
 from utils.metrics import multiclass_dice_coefficient
 from configs.config import Config
 from tqdm import tqdm
@@ -29,13 +29,13 @@ val_dataloader = DataLoader(val_dataset, batch_size=Config.BATCH_SIZE, shuffle=T
 
 #class_weight calculation
 # class_weights=np.zeros(Config.NUM_CLASSES+1)
-# for i in dataloader:
+# for i in train_dataloader:
 #     masks = torch.flatten(i[1]).to(torch.long)
 #     print(torch.unique(masks))
 #     a=list(torch.bincount(masks).numpy())
 #     for j in range(Config.NUM_CLASSES):
 #         class_weights[j]+=a[j]/sum(a)
-# class_weights = class_weights/len(dataloader)
+# class_weights = class_weights/len(train_dataloader)
 # print(float(class_weights[0]), float(class_weights[1]))
 
 # Initialize model
@@ -44,6 +44,8 @@ if torch.cuda.device_count()>1:
     model = DataParallel(model)
 model = model.to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE)
+criterion = MulticlassDiceLoss(include_background=False)
+
 early_stopping = EarlyStopping(patience=5, delta=1e-4)
 print(len(train_dataloader))
 print(len(val_dataloader))
@@ -58,7 +60,7 @@ for epoch in tqdm(range(Config.NUM_EPOCHS)):
         images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
         # Forward pass
         outputs = model(images)
-        loss = multi_class_dice_loss(outputs, masks, Config.NUM_CLASSES)
+        loss = criterion(outputs, masks, Config.NUM_CLASSES)
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()
@@ -66,6 +68,8 @@ for epoch in tqdm(range(Config.NUM_EPOCHS)):
 
         train_loss += loss.item()
         train_metric += multiclass_dice_coefficient(outputs, masks, num_classes=Config.NUM_CLASSES)
+        break
+
     train_loss /= len(train_dataloader)
     train_metric /= len(train_dataloader)
 
@@ -79,10 +83,11 @@ for epoch in tqdm(range(Config.NUM_EPOCHS)):
             images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
 
             outputs = model(images)
-            loss = multi_class_dice_loss(outputs, masks, Config.NUM_CLASSES)
+            loss = criterion(outputs, masks, Config.NUM_CLASSES)
 
             val_loss += loss.item()
             val_metric += multiclass_dice_coefficient(outputs, masks, num_classes=Config.NUM_CLASSES)
+            break
     val_loss /= len(val_dataloader)
     val_metric /= len(val_dataloader)
 

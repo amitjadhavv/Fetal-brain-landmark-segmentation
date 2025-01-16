@@ -1,22 +1,23 @@
-from distutils.command.config import config
-
 import torch
-import torch.nn as nn
+from torch.nn.parallel import DataParallel
 from torch.utils.data import DataLoader
 from Datasets.dataset import MRIDataset
 from models.VNet import VNet
 import torchio as tio
 import numpy as np
+from utils.support import EarlyStopping
 from utils.loss import multi_class_dice_loss
 from utils.metrics import multiclass_dice_coefficient
 from configs.config import Config
 from tqdm import tqdm
+
 # Define augmentations using torchio
 transform = tio.Compose([
     #tio.RandomFlip(axes=(0, 1, 2)),          # Randomly flip along axes
     tio.RandomAffine(scales=(0.9, 1.1), degrees=30),  # Apply random scaling and rotation
     tio.RandomNoise(mean=0.0, std=0.1)     # Add random noise
 ])
+
 # Load dataset
 image_paths = Config.get_image_paths()
 mask_paths = Config.get_mask_paths()
@@ -38,8 +39,12 @@ val_dataloader = DataLoader(val_dataset, batch_size=Config.BATCH_SIZE, shuffle=T
 # print(float(class_weights[0]), float(class_weights[1]))
 
 # Initialize model
-model = VNet(num_classes=Config.NUM_CLASSES).to(Config.DEVICE)
+model = VNet(num_classes=Config.NUM_CLASSES)
+if torch.cuda.device_count()>1:
+    model = DataParallel(model)
+model = model.to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE)
+early_stopping = EarlyStopping(patience=5, delta=1e-4)
 print(len(train_dataloader))
 print(len(val_dataloader))
 print(Config.DEVICE)
@@ -82,3 +87,10 @@ for epoch in tqdm(range(Config.NUM_EPOCHS)):
     val_metric /= len(val_dataloader)
 
     print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Val Loss: {val_loss:.4f}, Val Dice: {val_metric:.4f}")
+    early_stopping(val_metric)
+    if early_stopping.early_stop:
+        print("Early stopping triggered!")
+        model_save_path = "V_net_model_cropped.pth"
+        torch.save(model.state_dict(), model_save_path)
+        print(f"Model state dictionary saved to {model_save_path}")
+        break

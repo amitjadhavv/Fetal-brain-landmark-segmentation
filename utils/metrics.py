@@ -40,3 +40,4 @@ def multiclass_dice_coefficient(pred, target, num_classes, smooth=1e-6):
 
     # Return mean Dice score across all classes
     return sum(dice_scores) / num_classes
+

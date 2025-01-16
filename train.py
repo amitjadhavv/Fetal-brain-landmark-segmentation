@@ -7,8 +7,8 @@ from Datasets.dataset import MRIDataset
 from models.VNet import VNet
 import torchio as tio
 import numpy as np
-from utils.loss import binary_weighted_dice_loss
-from utils.metrics import dice_coefficient
+from utils.loss import multi_class_dice_loss
+from utils.metrics import multiclass_dice_coefficient
 from configs.config import Config
 from tqdm import tqdm
 # Define augmentations using torchio
@@ -20,39 +20,65 @@ transform = tio.Compose([
 # Load dataset
 image_paths = Config.get_image_paths()
 mask_paths = Config.get_mask_paths()
-dataset = MRIDataset(image_paths, mask_paths, transform=transform)
-dataloader = DataLoader(dataset, batch_size=Config.BATCH_SIZE, shuffle=True)
+train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform)
+train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True)
+val_dataset = MRIDataset(image_paths,mask_paths, split="val")
+val_dataloader = DataLoader(val_dataset, batch_size=Config.BATCH_SIZE, shuffle=True)
 # dataloader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=4)
 
 #class_weight calculation
-class_weights=np.zeros(Config.NUM_CLASSES+1)
-for i in dataloader:
-    masks = torch.flatten(i[1]).to(torch.long)
-    a=list(torch.bincount(masks).numpy())
-    for j in range(Config.NUM_CLASSES+1):
-        class_weights[j]+=a[j]/sum(a)
-class_weights = class_weights/len(dataloader)
+# class_weights=np.zeros(Config.NUM_CLASSES+1)
+# for i in dataloader:
+#     masks = torch.flatten(i[1]).to(torch.long)
+#     print(torch.unique(masks))
+#     a=list(torch.bincount(masks).numpy())
+#     for j in range(Config.NUM_CLASSES):
+#         class_weights[j]+=a[j]/sum(a)
+# class_weights = class_weights/len(dataloader)
+# print(float(class_weights[0]), float(class_weights[1]))
+
 # Initialize model
 model = VNet(num_classes=Config.NUM_CLASSES).to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE)
-print(len(dataloader))
+print(len(train_dataloader))
+print(len(val_dataloader))
 print(Config.DEVICE)
-print(float(class_weights[0]), float(class_weights[1]))
-# Training loop
+
+# # Training loop
 for epoch in tqdm(range(Config.NUM_EPOCHS)):
     model.train()
-    epoch_loss = 0
-    for images, masks in dataloader:
+    train_loss = 0
+    train_metric = 0
+    for images, masks in train_dataloader:
         images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
-
         # Forward pass
         outputs = model(images)
-        loss = binary_weighted_dice_loss(outputs, masks, class_weights[1])
+        loss = multi_class_dice_loss(outputs, masks, Config.NUM_CLASSES)
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        epoch_loss += loss.item()
+        train_loss += loss.item()
+        train_metric += multiclass_dice_coefficient(outputs, masks, num_classes=Config.NUM_CLASSES)
+    train_loss /= len(train_dataloader)
+    train_metric /= len(train_dataloader)
 
-    print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Loss: {epoch_loss / len(dataloader):.4f}")
+    print(f"Epoch {epoch+1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, Train Dice: {train_metric:.4f}")
+    model.eval()
+    val_loss = 0.0
+    val_metric = 0.0
+
+    with torch.no_grad():
+        for images, masks in val_dataloader:
+            images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
+
+            outputs = model(images)
+            loss = multi_class_dice_loss(outputs, masks, Config.NUM_CLASSES)
+
+            val_loss += loss.item()
+            val_metric += multiclass_dice_coefficient(outputs, masks, num_classes=Config.NUM_CLASSES)
+    val_loss /= len(val_dataloader)
+    val_metric /= len(val_dataloader)
+
+    print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Val Loss: {val_loss:.4f}, Val Dice: {val_metric:.4f}")

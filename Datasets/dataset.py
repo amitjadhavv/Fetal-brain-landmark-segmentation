@@ -1,5 +1,5 @@
-import os
 import torch
+import random
 from torch.utils.data import Dataset
 import nibabel as nib
 import numpy as np
@@ -9,7 +9,8 @@ import torchio as tio  # For optional data augmentation
 from torch.utils.data import DataLoader
 
 class MRIDataset(Dataset):
-    def __init__(self, image_paths, mask_paths, transform=None):
+    def __init__(self, image_paths, mask_paths, split="train", train_ratio=0.7, val_ratio=0.15, test_ratio=0.15,
+                 seed=123, transform=None):
         """
         Args:
             image_paths (list): List of paths to MRI images.
@@ -18,15 +19,41 @@ class MRIDataset(Dataset):
         """
         self.image_paths = image_paths
         self.mask_paths = mask_paths
+        self.split = split
         self.transform = transform
+        # Shuffle data with seed
+        data = list(zip(image_paths, mask_paths))
+        random.seed(seed)
+        random.shuffle(data)
+        self.image_paths, self.mask_paths = zip(*data)
+
+        # Compute split indices
+        total_files = len(self.image_paths)
+        train_count = int(total_files * train_ratio)
+        val_count = int(total_files * val_ratio)
+
+        self.train_indices = range(0, train_count)
+        self.val_indices = range(train_count, train_count + val_count)
+        self.test_indices = range(train_count + val_count, total_files)
+
+        # Select the appropriate split
+        if split == "train":
+            self.indices = self.train_indices
+        elif split == "val":
+            self.indices = self.val_indices
+        elif split == "test":
+            self.indices = self.test_indices
+        else:
+            raise ValueError("Invalid split! Choose from 'train', 'val', or 'test'.")
 
     def __len__(self):
-        return len(self.image_paths)
+        return len(self.indices)
 
     def __getitem__(self, idx):
         # Load the MRI image and mask
-        img = nib.load(self.image_paths[idx]).get_fdata()
-        mask = nib.load(self.mask_paths[idx]).get_fdata()
+        actual_idx = self.indices[idx]
+        img = nib.load(self.image_paths[actual_idx]).get_fdata()
+        mask = nib.load(self.mask_paths[actual_idx]).get_fdata()
 
         # Normalize the image
         img = (img - np.min(img)) / (np.max(img) - np.min(img))
@@ -44,13 +71,14 @@ class MRIDataset(Dataset):
         img = F.interpolate(img.unsqueeze(0), size=target_size, mode='trilinear', align_corners=False).squeeze(0)
         mask = F.interpolate(mask.unsqueeze(0).float(), size=target_size, mode='nearest').squeeze(0)
 
-        # Ensure correct shape for torchio
-        img = img.squeeze(0)  # Remove unnecessary batch dimension
-        mask = mask.squeeze(0)
-
         # Apply transformations (if any)
         if self.transform:
-            img = self.transform(img.unsqueeze(0))  # Add channel dimension back
-            mask = self.transform(mask.unsqueeze(0))  # Add channel dimension back
+            subject = tio.Subject(
+                image=tio.ScalarImage(tensor=img),
+                mask=tio.LabelMap(tensor=mask)
+            )
+            subject = self.transform(subject)
+            img = subject['image'].data
+            mask = subject['mask'].data  # Add channel dimension back
 
         return img, mask

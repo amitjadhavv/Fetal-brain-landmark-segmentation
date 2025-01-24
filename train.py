@@ -10,6 +10,7 @@ from configs.config import Config
 from tqdm import tqdm
 from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
+
 def remap_labels(labels, mapping):
     # Remap the labels based on the mapping
     remapped_labels = labels.clone()
@@ -32,7 +33,6 @@ train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuff
 val_dataset = MRIDataset(image_paths,mask_paths, split="val",class_mapping=class_mapping)
 val_dataloader = DataLoader(val_dataset, batch_size=Config.BATCH_SIZE, shuffle=True)
 
-
 # class_weight calculation
 epsilon = 1e-6
 norm_class_weights = None
@@ -47,6 +47,7 @@ foreground_weights=(1-class_weights)[1:]
 inverse_values = 1 / foreground_weights
 norm_class_weights = torch.tensor(inverse_values / inverse_values.sum())
 print(norm_class_weights)
+
 # Initialize model
 model = VNet(num_classes=Config.NUM_CLASSES)
 if torch.cuda.device_count()>1:
@@ -56,6 +57,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE)
 criterion = DiceLoss(include_background=False, softmax=True, squared_pred=True, reduction="none")
 dice_metric = DiceMetric(include_background=False, reduction="mean")
 
+#set early stopping
 early_stopping = EarlyStopping(patience=5, delta=1e-4)
 print(len(train_dataloader))
 print(len(val_dataloader))
@@ -73,11 +75,8 @@ for epoch in tqdm(range(Config.NUM_EPOCHS)):
         one_hot = torch.nn.functional.one_hot(masks, num_classes=Config.NUM_CLASSES)  # Shape: (N, D, H, W, C)
         masks = one_hot.permute(0, 4, 1, 2, 3)
         # Forward pass
-        print(masks.shape)
         outputs = model(images)
-        print(outputs.shape)
         loss = criterion(outputs, masks)
-        print(loss.shape)
         if norm_class_weights is not None:
             weights = norm_class_weights.view(1, -1, *([1] * (loss.ndim - 2))).to(Config.DEVICE)  # Broadcast weights to match loss shape
             loss = loss * weights  # Apply class weights
@@ -92,7 +91,6 @@ for epoch in tqdm(range(Config.NUM_EPOCHS)):
         if dice.ndim > 0:
             dice = dice.mean()
         train_metric += dice.item() * images.size(0)
-        break
 
     train_loss /= len(train_dataloader)
     train_metric /= len(train_dataloader)
@@ -132,3 +130,4 @@ for epoch in tqdm(range(Config.NUM_EPOCHS)):
         model_save_path = "V_net_model_cropped.pth"
         torch.save(model.state_dict(), model_save_path)
         print(f"Model state dictionary saved to {model_save_path}")
+        break

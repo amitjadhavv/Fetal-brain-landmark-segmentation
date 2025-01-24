@@ -7,9 +7,14 @@ import torch.nn.functional as F
 import torchio as tio  # For optional data augmentation
 
 from torch.utils.data import DataLoader
+def remap_labels(labels, mapping):
+    remapped_labels = labels.clone()
+    for old, new in mapping.items():
+        remapped_labels[labels == old] = new
+    return remapped_labels
 
 class MRIDataset(Dataset):
-    def __init__(self, image_paths, mask_paths, split="train", train_ratio=0.7, val_ratio=0.15, test_ratio=0.15,
+    def __init__(self, image_paths, mask_paths, split="train",class_mapping=None, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15,
                  seed=123, transform=None):
         """
         Args:
@@ -21,6 +26,8 @@ class MRIDataset(Dataset):
         self.mask_paths = mask_paths
         self.split = split
         self.transform = transform
+        self.class_mapping = class_mapping
+
         # Shuffle data with seed
         data = list(zip(image_paths, mask_paths))
         random.seed(seed)
@@ -80,5 +87,7 @@ class MRIDataset(Dataset):
             subject = self.transform(subject)
             img = subject['image'].data
             mask = subject['mask'].data  # Add channel dimension back
+        if self.class_mapping is not None:
+            mask = remap_labels(mask, self.class_mapping)
 
         return img, mask

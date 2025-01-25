@@ -126,6 +126,6 @@ for epoch in tqdm(range(Config.NUM_EPOCHS)):
     # early_stopping(train_metric)
     # if early_stopping.early_stop:
     #     print("Early stopping triggered!")
-    model_save_path = "V_net_model_cropped.pth"
-    torch.save(model.state_dict(), model_save_path)
-    print(f"Model state dictionary saved to {model_save_path}")
+model_save_path = "V_net_model_cropped.pth"
+torch.save(model.state_dict(), model_save_path)
+print(f"Model state dictionary saved to {model_save_path}")

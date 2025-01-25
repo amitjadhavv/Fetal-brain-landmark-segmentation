@@ -14,7 +14,7 @@ def remap_labels(labels, mapping):
     return remapped_labels
 
 class MRIDataset(Dataset):
-    def __init__(self, image_paths, mask_paths, split="train",class_mapping=None, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15,
+    def __init__(self, image_paths, mask_paths, split="train",class_mapping=None, train_ratio=0.9, val_ratio=0.0, test_ratio=0.10,
                  seed=123, transform=None):
         """
         Args:

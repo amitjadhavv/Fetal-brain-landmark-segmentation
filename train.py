@@ -30,8 +30,8 @@ image_paths = Config.get_image_paths()
 mask_paths = Config.get_mask_paths()
 train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, class_mapping=class_mapping)
 train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True)
-val_dataset = MRIDataset(image_paths,mask_paths, split="val",class_mapping=class_mapping)
-val_dataloader = DataLoader(val_dataset, batch_size=Config.BATCH_SIZE, shuffle=True)
+# val_dataset = MRIDataset(image_paths,mask_paths, split="val",class_mapping=class_mapping)
+# val_dataloader = DataLoader(val_dataset, batch_size=Config.BATCH_SIZE, shuffle=True)
 
 # class_weight calculation
 epsilon = 1e-6
@@ -60,7 +60,7 @@ dice_metric = DiceMetric(include_background=False, reduction="mean")
 #set early stopping
 early_stopping = EarlyStopping(patience=5, delta=1e-4)
 print(len(train_dataloader))
-print(len(val_dataloader))
+# print(len(val_dataloader))
 print(Config.DEVICE)
 
 # # Training loop
@@ -91,43 +91,42 @@ for epoch in tqdm(range(Config.NUM_EPOCHS)):
         if dice.ndim > 0:
             dice = dice.mean()
         train_metric += dice.item() * images.size(0)
-
+        break
     train_loss /= len(train_dataloader)
     train_metric /= len(train_dataloader)
 
     print(f"Epoch {epoch+1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, Train Dice: {train_metric:.4f}")
-    model.eval()
-    val_loss = 0.0
-    val_metric = 0.0
+    # model.eval()
+    # val_loss = 0.0
+    # val_metric = 0.0
+    #
+    # with torch.no_grad():
+    #     for images, masks in val_dataloader:
+    #         images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
+    #         outputs = model(images)
+    #         #one hot encoding
+    #         masks = masks.squeeze(1)
+    #         masks = masks.to(torch.long)
+    #         one_hot = torch.nn.functional.one_hot(masks, num_classes=Config.NUM_CLASSES)  # Shape: (N, D, H, W, C)
+    #         masks = one_hot.permute(0, 4, 1, 2, 3)
+    #         loss = criterion(outputs, masks)
+    #         if norm_class_weights is not None:
+    #             weights = norm_class_weights.view(1, -1, *([1] * (loss.ndim - 2))).to(Config.DEVICE)  # Broadcast weights to match loss shape
+    #             loss = loss * weights  # Apply class weights
+    #         loss = loss.mean()
+    #         val_loss += loss.item()
+    #         dice = dice_metric(y_pred=outputs, y=masks)
+    #         if dice.ndim > 0:
+    #             dice = dice.mean()
+    #         train_metric += dice.item() * images.size(0)
+    #         val_metric += dice.item() * images.size(0)
+    # val_loss /= len(val_dataloader)
+    # val_metric /= len(val_dataloader)
 
-    with torch.no_grad():
-        for images, masks in val_dataloader:
-            images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
-            outputs = model(images)
-            #one hot encoding
-            masks = masks.squeeze(1)
-            masks = masks.to(torch.long)
-            one_hot = torch.nn.functional.one_hot(masks, num_classes=Config.NUM_CLASSES)  # Shape: (N, D, H, W, C)
-            masks = one_hot.permute(0, 4, 1, 2, 3)
-            loss = criterion(outputs, masks)
-            if norm_class_weights is not None:
-                weights = norm_class_weights.view(1, -1, *([1] * (loss.ndim - 2))).to(Config.DEVICE)  # Broadcast weights to match loss shape
-                loss = loss * weights  # Apply class weights
-            loss = loss.mean()
-            val_loss += loss.item()
-            dice = dice_metric(y_pred=outputs, y=masks)
-            if dice.ndim > 0:
-                dice = dice.mean()
-            train_metric += dice.item() * images.size(0)
-            val_metric += dice.item() * images.size(0)
-    val_loss /= len(val_dataloader)
-    val_metric /= len(val_dataloader)
-
-    print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Val Loss: {val_loss:.4f}, Val Dice: {val_metric:.4f}")
-    early_stopping(val_metric)
-    if early_stopping.early_stop:
-        print("Early stopping triggered!")
-        model_save_path = "V_net_model_cropped.pth"
-        torch.save(model.state_dict(), model_save_path)
-        print(f"Model state dictionary saved to {model_save_path}")
-        break
+    # print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Val Loss: {val_loss:.4f}, Val Dice: {val_metric:.4f}")
+    # early_stopping(train_metric)
+    # if early_stopping.early_stop:
+    #     print("Early stopping triggered!")
+    model_save_path = "V_net_model_cropped.pth"
+    torch.save(model.state_dict(), model_save_path)
+    print(f"Model state dictionary saved to {model_save_path}")

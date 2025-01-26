@@ -54,8 +54,8 @@ if torch.cuda.device_count()>1:
     model = DataParallel(model)
 model = model.to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE)
-criterion = DiceLoss(include_background=False, softmax=True, squared_pred=True, reduction="none")
-dice_metric = DiceMetric(include_background=False, reduction="mean")
+criterion = DiceLoss(include_background=False, softmax=True, squared_pred=True,weight=norm_class_weights, reduction="mean")
+dice_metric = DiceMetric(include_background=False)
 
 #set early stopping
 early_stopping = EarlyStopping(patience=5, delta=1e-4)
@@ -77,10 +77,10 @@ for epoch in tqdm(range(Config.NUM_EPOCHS)):
         # Forward pass
         outputs = model(images)
         loss = criterion(outputs, masks)
-        if norm_class_weights is not None:
-            weights = norm_class_weights.view(1, -1, *([1] * (loss.ndim - 2))).to(Config.DEVICE)  # Broadcast weights to match loss shape
-            loss = loss * weights  # Apply class weights
-        loss = loss.mean()  # Custom reduction
+        # if norm_class_weights is not None:
+        #     weights = norm_class_weights.view(1, -1, *([1] * (loss.ndim - 2))).to(Config.DEVICE)  # Broadcast weights to match loss shape
+        #     loss = loss * weights  # Apply class weights
+        # loss = loss.mean()  # Custom reduction
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()

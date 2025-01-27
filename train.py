@@ -46,7 +46,7 @@ class_weights = class_weights/len(train_dataloader)
 foreground_weights=(1-class_weights)[1:]
 inverse_values = 1 / foreground_weights
 norm_class_weights = torch.tensor(inverse_values / inverse_values.sum())
-print(norm_class_weights)
+# print(norm_class_weights)
 
 # Initialize model
 model = VNet(num_classes=Config.NUM_CLASSES)
@@ -58,10 +58,7 @@ criterion = DiceLoss(include_background=False, softmax=True, squared_pred=True,w
 dice_metric = DiceMetric(include_background=False)
 
 #set early stopping
-early_stopping = EarlyStopping(patience=5, delta=1e-4)
-print(len(train_dataloader))
-# print(len(val_dataloader))
-print(Config.DEVICE)
+# early_stopping = EarlyStopping(patience=5, delta=1e-4)
 
 # # Training loop
 for epoch in tqdm(range(Config.NUM_EPOCHS)):
@@ -91,6 +88,7 @@ for epoch in tqdm(range(Config.NUM_EPOCHS)):
         if dice.ndim > 0:
             dice = dice.mean()
         train_metric += dice.item() * images.size(0)
+        break
     train_loss /= len(train_dataloader)
     train_metric /= len(train_dataloader)
 

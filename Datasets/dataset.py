@@ -15,7 +15,7 @@ def remap_labels(labels, mapping):
 
 class MRIDataset(Dataset):
     def __init__(self, image_paths, mask_paths, split="train",class_mapping=None, train_ratio=0.9, val_ratio=0.0, test_ratio=0.10,
-                 seed=123, transform=None):
+                 seed=123, transform=None, augmentation_factor=1):
         """
         Args:
             image_paths (list): List of paths to MRI images.
@@ -27,6 +27,7 @@ class MRIDataset(Dataset):
         self.split = split
         self.transform = transform
         self.class_mapping = class_mapping
+        self.augmentation_factor = augmentation_factor
 
         # Shuffle data with seed
         data = list(zip(image_paths, mask_paths))
@@ -54,11 +55,11 @@ class MRIDataset(Dataset):
             raise ValueError("Invalid split! Choose from 'train', 'val', or 'test'.")
 
     def __len__(self):
-        return len(self.indices)
+        return len(self.indices)* self.augmentation_factor
 
     def __getitem__(self, idx):
         # Load the MRI image and mask
-        actual_idx = self.indices[idx]
+        actual_idx = self.indices[idx//self.augmentation_factor]
         img = nib.load(self.image_paths[actual_idx]).get_fdata()
         mask = nib.load(self.mask_paths[actual_idx]).get_fdata()
 

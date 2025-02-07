@@ -8,7 +8,8 @@ import numpy as np
 from configs.config import Config
 from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
-import  json
+import matplotlib.pyplot as plt
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 def remap_labels(labels, mapping):
     # Remap the labels based on the mapping
@@ -54,42 +55,49 @@ optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE)
 criterion = DiceLoss(include_background=False, softmax=True, squared_pred=True,weight=norm_class_weights, reduction="mean")
 dice_metric = DiceMetric(include_background=False)
 
-train_loss_history = []
-# # Training loop
-for epoch in range(Config.NUM_EPOCHS):
-    model.train()
+#Learning Rate Scheduler (Cosine Annealing for smooth decay)
+scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
+
+# Adaptive Learning Rate Finder
+initial_lr = 1e-6
+final_lr = 1e-1
+num_steps = 100
+lrs = []
+losses = []
+
+for i in range(num_steps):
     train_loss = 0
-    train_metric = 0
+    lr = initial_lr * (final_lr / initial_lr) ** (i / num_steps)
+    model.train()
     for images, masks in train_dataloader:
         images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
         masks = masks.squeeze(1)
         masks = masks.to(torch.long)
         one_hot = torch.nn.functional.one_hot(masks, num_classes=Config.NUM_CLASSES)  # Shape: (N, D, H, W, C)
         masks = one_hot.permute(0, 4, 1, 2, 3)
-        # Forward pass
+        optimizer.param_groups[0]['lr'] = lr
+        optimizer.zero_grad()
         outputs = model(images)
         loss = criterion(outputs, masks)
-
-        # Backpropagation
-        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         train_loss += loss.item()
-        dice = dice_metric(y_pred=outputs, y=masks)
-        if dice.ndim > 0:
-            dice = dice.mean()
-        train_metric += dice.item() * images.size(0)
     train_loss /= len(train_dataloader)
-    train_loss_history.append(train_loss)
-    train_metric /= len(train_dataloader)
-    print(f"Epoch {epoch+1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, Train Dice: {train_metric:.4f}")
+    lrs.append(lr)
+    losses.append(train_loss)
 
-model_save_path = "V_net_model_cropped.pth"
-torch.save(model.state_dict(), model_save_path)
-print(f"Model state dictionary saved to {model_save_path}")
-loss_history = {
-    "train_loss": train_loss_history
-}
+# Find the best LR
+best_lr = lrs[losses.index(min(losses))]
+optimizer.param_groups[0]['lr'] = best_lr
+print(f"Optimal Learning Rate Found: {best_lr:.6f}")
 
-with open("loss_history.json", "w") as f:
-    json.dump(loss_history, f)
+# Plot and save the LR finder graph
+plt.figure(figsize=(8, 6))
+plt.plot(lrs, losses)
+plt.xscale('log')
+plt.xlabel('Learning Rate')
+plt.ylabel('Loss')
+plt.title('Learning Rate Finder')
+plt.grid(True)
+plt.savefig('learning_rate_finder.png')
+plt.show()

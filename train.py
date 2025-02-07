@@ -80,7 +80,6 @@ for epoch in range(Config.NUM_EPOCHS):
         if dice.ndim > 0:
             dice = dice.mean()
         train_metric += dice.item() * images.size(0)
-        break
     train_loss /= len(train_dataloader)
     train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)

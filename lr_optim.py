@@ -87,7 +87,7 @@ optimizer.param_groups[0]['lr'] = best_lr
 print(f"Optimal Learning Rate Found: {best_lr:.6f}")
 
 # Plot and save the LR finder graph
-plt.figure(figsize=(8, 6))
+plt.figure(figsize=(8, 8))
 plt.plot(lrs, losses)
 plt.xscale('log')
 plt.xlabel('Learning Rate')

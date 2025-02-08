@@ -9,6 +9,7 @@ from configs.config import Config
 from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
 import  json
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 def remap_labels(labels, mapping):
     # Remap the labels based on the mapping
@@ -53,6 +54,8 @@ model = model.to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE)
 criterion = DiceLoss(include_background=False, softmax=True, squared_pred=True,weight=norm_class_weights, reduction="mean")
 dice_metric = DiceMetric(include_background=False)
+# Learning Rate Scheduler (Cosine Annealing for smooth decay)
+scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
 
 train_loss_history = []
 # # Training loop
@@ -83,7 +86,7 @@ for epoch in range(Config.NUM_EPOCHS):
     train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)
     print(f"Epoch {epoch+1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, Train Dice: {train_metric:.4f}")
-
+    scheduler.step()
 model_save_path = "V_net_model_cropped.pth"
 torch.save(model.state_dict(), model_save_path)
 print(f"Model state dictionary saved to {model_save_path}")

@@ -64,22 +64,27 @@ num_steps = 100
 lrs = []
 losses = []
 
-for i, (images, masks) in enumerate(train_dataloader):
-    if i >= num_steps:
-        break
-    images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
-    masks = masks.squeeze(1)
-    masks = masks.to(torch.long)
-    one_hot = torch.nn.functional.one_hot(masks, num_classes=Config.NUM_CLASSES)  # Shape: (N, D, H, W, C)
-    masks = one_hot.permute(0, 4, 1, 2, 3)
-    optimizer.param_groups[0]['lr'] = initial_lr * (final_lr / initial_lr) ** (i / num_steps)
-    optimizer.zero_grad()
-    outputs = model(images)
-    loss = criterion(outputs, masks)
-    loss.backward()
-    optimizer.step()
-    lrs.append(optimizer.param_groups[0]['lr'])
-    losses.append(loss.item())
+for i in range(num_steps):
+    
+    train_loss = 0
+    lr = initial_lr * (final_lr / initial_lr) ** (i / num_steps)
+    model.train()
+    for images, masks in train_dataloader:
+        images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
+        masks = masks.squeeze(1)
+        masks = masks.to(torch.long)
+        one_hot = torch.nn.functional.one_hot(masks, num_classes=Config.NUM_CLASSES)  # Shape: (N, D, H, W, C)
+        masks = one_hot.permute(0, 4, 1, 2, 3)
+        optimizer.param_groups[0]['lr'] = lr
+        optimizer.zero_grad()
+        outputs = model(images)
+        loss = criterion(outputs, masks)
+        loss.backward()
+        optimizer.step()
+        train_loss += loss.item()
+    train_loss /= len(train_dataloader)
+    lrs.append(lr)
+    losses.append(train_loss)
 
 # Find the best LR
 best_lr = lrs[losses.index(min(losses))]

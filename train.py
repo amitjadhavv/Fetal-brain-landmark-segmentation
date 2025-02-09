@@ -51,7 +51,7 @@ model = VNet(num_classes=Config.NUM_CLASSES)
 if torch.cuda.device_count()>1:
     model = DataParallel(model)
 model = model.to(Config.DEVICE)
-optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE)
+optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE, weight_decay=1e-4)
 criterion = DiceLoss(include_background=False, softmax=True, squared_pred=True,weight=norm_class_weights, reduction="mean")
 dice_metric = DiceMetric(include_background=False)
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)

@@ -66,7 +66,7 @@ for epoch in range(Config.NUM_EPOCHS):
         loss.backward()
         optimizer.step()
         train_loss += loss.item()
-        dice = dice_metric(y_pred=outputs, y=masks)
+        dice = dice_metric(y_pred=outputs, y=heatmaps)
         if dice.ndim > 0:
             dice = dice.mean()
         train_metric += dice.item() * images.size(0)

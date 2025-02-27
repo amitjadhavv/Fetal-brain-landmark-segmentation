@@ -11,40 +11,25 @@ from monai.metrics import DiceMetric
 import  json
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-def remap_labels(labels, mapping):
-    # Remap the labels based on the mapping
-    remapped_labels = labels.clone()
-    for old, new in mapping.items():
-        remapped_labels[labels == old] = new
-    return remapped_labels
-
 # Define augmentations using torchio
 transform = tio.Compose([
     tio.RandomFlip(axes=(0, 1, 2)),          # Randomly flip along axes
     tio.RandomAffine(scales=(0.9, 1.1), degrees=30),  # Apply random scaling and rotation
-    tio.RandomNoise(mean=0.0, std=0.1)     # Add random noise
+    tio.RandomNoise(mean=0.0, std=0.1)
+    # Add random noise
 ])
-class_mapping = {0: 0, 1: 1, 3: 2, 4: 3, 6: 4}
 # Load dataset
 image_paths = Config.get_image_paths()
 mask_paths = Config.get_mask_paths()
-train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, class_mapping=class_mapping, augmentation_factor=2)
+train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, augmentation_factor=1)
 train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True)
 print(len(train_dataloader))
 # class_weight calculation
-epsilon = 1e-6
-norm_class_weights = None
-class_weights=np.zeros(Config.NUM_CLASSES)
-for batch in train_dataloader:
-    masks = torch.flatten(batch[1]).to(torch.long)
-    a=list(torch.bincount(masks).numpy())
-    for j in range(Config.NUM_CLASSES):
-        class_weights[j]+=a[j]/(sum(a)+epsilon)
-class_weights = class_weights/len(train_dataloader)
-foreground_weights=(1-class_weights)[1:]
-inverse_values = 1 / foreground_weights
-norm_class_weights = torch.tensor(inverse_values / inverse_values.sum())
-print(norm_class_weights)
+class_weights = [3.8217e-05, 2.6055e-01, 5.4443e-02, 1.4835e-01, 5.3661e-01]
+# Nrmalize so all weights sum to 1
+norm_class_weights = torch.tensor(class_weights, dtype=torch.float32)
+
+print("Normalized Class Weights:", norm_class_weights)
 
 # Initialize model
 model = VNet(num_classes=Config.NUM_CLASSES)
@@ -52,8 +37,9 @@ if torch.cuda.device_count()>1:
     model = DataParallel(model)
 model = model.to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE, weight_decay=1e-4)
-criterion = DiceLoss(include_background=False, softmax=True, squared_pred=True,weight=norm_class_weights, reduction="mean")
+dice_loss_fn = DiceLoss(include_background=True, softmax=False, squared_pred=True,weight=norm_class_weights, reduction="mean")
 dice_metric = DiceMetric(include_background=False)
+kl_loss_fn = torch.nn.KLDivLoss(reduction="batchmean")
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
 scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
 
@@ -63,16 +49,18 @@ for epoch in range(Config.NUM_EPOCHS):
     model.train()
     train_loss = 0
     train_metric = 0
-    for images, masks in train_dataloader:
-        images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
-        masks = masks.squeeze(1)
-        masks = masks.to(torch.long)
-        one_hot = torch.nn.functional.one_hot(masks, num_classes=Config.NUM_CLASSES)  # Shape: (N, D, H, W, C)
-        masks = one_hot.permute(0, 4, 1, 2, 3)
-        # Forward pass
+    for images, heatmaps in train_dataloader:
+        images, heatmaps = images.to(Config.DEVICE), heatmaps.to(Config.DEVICE)
         outputs = model(images)
-        loss = criterion(outputs, masks)
+        # Ensure heatmap and outputs have the same shape
+        background = 1 - torch.sum(heatmaps, dim=1, keepdim=True)  # Compute background class
+        heatmaps = torch.cat([background, heatmaps], dim=1)
 
+        print(heatmaps.shape, heatmaps.dtype, outputs.shape, outputs.dtype)
+        # Forward pass
+        dice_loss = dice_loss_fn(outputs, heatmaps)
+        kl_loss = kl_loss_fn(torch.log(outputs + 1e-6), heatmaps)
+        loss = dice_loss + kl_loss
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()
@@ -82,6 +70,7 @@ for epoch in range(Config.NUM_EPOCHS):
         if dice.ndim > 0:
             dice = dice.mean()
         train_metric += dice.item() * images.size(0)
+    break
     train_loss /= len(train_dataloader)
     train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)

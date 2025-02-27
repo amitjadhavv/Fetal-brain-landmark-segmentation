@@ -5,17 +5,12 @@ import nibabel as nib
 import numpy as np
 import torch.nn.functional as F
 import torchio as tio  # For optional data augmentation
+from scipy.ndimage import label
 
-from torch.utils.data import DataLoader
-def remap_labels(labels, mapping):
-    remapped_labels = labels.clone()
-    for old, new in mapping.items():
-        remapped_labels[labels == old] = new
-    return remapped_labels
 
 class MRIDataset(Dataset):
-    def __init__(self, image_paths, mask_paths, split="train",class_mapping=None, train_ratio=0.9, val_ratio=0.0, test_ratio=0.10,
-                 seed=123, transform=None, augmentation_factor=1):
+    def __init__(self, image_paths, mask_paths, split="train", train_ratio=0.9, val_ratio=0.0, test_ratio=0.10,
+                 seed=123, transform=None, augmentation_factor=1, landmark_types=[1, 3, 4, 6], alpha=1.0, sigma_scaling=0.65):
         """
         Args:
             image_paths (list): List of paths to MRI images.
@@ -26,8 +21,10 @@ class MRIDataset(Dataset):
         self.mask_paths = mask_paths
         self.split = split
         self.transform = transform
-        self.class_mapping = class_mapping
         self.augmentation_factor = augmentation_factor
+        self.landmark_types = landmark_types
+        self.alpha = alpha
+        self.sigma_scaling = sigma_scaling
 
         # Shuffle data with seed
         data = list(zip(image_paths, mask_paths))
@@ -55,40 +52,78 @@ class MRIDataset(Dataset):
             raise ValueError("Invalid split! Choose from 'train', 'val', or 'test'.")
 
     def __len__(self):
-        return len(self.indices)* self.augmentation_factor
+        return len(self.indices) * self.augmentation_factor
+
+    def load_nifti(self, file_path):
+        """Loads a NIfTI image and returns its data as a NumPy array."""
+        nifti_img = nib.load(file_path)
+        return nifti_img.get_fdata()
+
+    def get_landmarks_by_type(self, mask):
+        """Extracts landmarks and separates multiple clusters for IDs 1 and 4."""
+        landmarks_dict = {}
+        for landmark_type in self.landmark_types:
+            coords = np.argwhere(mask == landmark_type)
+            if len(coords) > 0:
+                if landmark_type in [1, 4]:  # Handle separate clusters for IDs 1 & 4
+                    labeled_array, num_clusters = label(mask == landmark_type)
+                    clusters = [np.argwhere(labeled_array == i + 1) for i in range(num_clusters)]
+                    landmarks_dict[landmark_type] = clusters
+                else:
+                    landmarks_dict[landmark_type] = [coords]
+        return landmarks_dict
+
+    def compute_adaptive_sigma(self, landmarks, half_sigma=False):
+        """Computes an adaptive sigma value based on the spatial spread of landmarks."""
+        if len(landmarks) == 1:
+            sigma = 3.0
+        else:
+            landmarks = np.array(landmarks)
+            centroid = np.mean(landmarks, axis=0)
+            variance = np.mean(np.sum((landmarks - centroid) ** 2, axis=1))
+            sigma = self.alpha * np.sqrt(variance)
+        sigma *= self.sigma_scaling
+        return sigma / 2 if half_sigma else sigma
+
+    def create_gaussian_heatmap(self, image_shape, landmarks, sigma):
+        """Generates a 3D Gaussian heatmap mask for given landmarks."""
+        mask = torch.zeros(image_shape, dtype=torch.float32)
+        grid_x, grid_y, grid_z = torch.meshgrid(
+            torch.arange(image_shape[0]),
+            torch.arange(image_shape[1]),
+            torch.arange(image_shape[2]),
+            indexing='ij'
+        )
+        for landmark in landmarks:
+            x, y, z = landmark
+            distance = (grid_x - x) ** 2 + (grid_y - y) ** 2 + (grid_z - z) ** 2
+            mask += torch.exp(-distance / (2 * sigma ** 2))
+        return mask / mask.max()
 
     def __getitem__(self, idx):
-        # Load the MRI image and mask
-        actual_idx = self.indices[idx//self.augmentation_factor]
-        img = nib.load(self.image_paths[actual_idx]).get_fdata()
-        mask = nib.load(self.mask_paths[actual_idx]).get_fdata()
-
-        # Normalize the image
+        actual_idx = self.indices[idx // self.augmentation_factor]
+        img = self.load_nifti(self.image_paths[actual_idx])
+        mask = self.load_nifti(self.mask_paths[actual_idx])
         img = (img - np.min(img)) / (np.max(img) - np.min(img))
-
-        # Add channel dimension to both image and mask
         img = np.expand_dims(img, axis=0)
-        mask = np.expand_dims(mask, axis=0)
-
-        # Convert to torch tensors
-        img = torch.tensor(img, dtype=torch.float32)
-        mask = torch.tensor(mask, dtype=torch.long)  # Use long for segmentation labels
-
-        # Resize to 64x64x64
-        target_size = (64, 64, 64)
-        img = F.interpolate(img.unsqueeze(0), size=target_size, mode='trilinear', align_corners=False).squeeze(0)
-        mask = F.interpolate(mask.unsqueeze(0).float(), size=target_size, mode='nearest').squeeze(0)
-
-        # Apply transformations (if any)
+        img = F.interpolate(torch.tensor(img).unsqueeze(0), size=(64, 64, 64), mode='trilinear', align_corners=False).squeeze(0)
+        landmarks_dict = self.get_landmarks_by_type(mask)
+        heatmap_4d = torch.zeros((len(self.landmark_types), 64, 64, 64), dtype=torch.float32)
+        for i, landmark_type in enumerate(self.landmark_types):
+            heatmap_mask = torch.zeros((64, 64, 64), dtype=torch.float32)
+            if landmark_type in landmarks_dict:
+                for cluster in landmarks_dict[landmark_type]:
+                    half_sigma = landmark_type in [1, 4]
+                    adaptive_sigma = self.compute_adaptive_sigma(cluster, half_sigma, )
+                    cluster_heatmap = self.create_gaussian_heatmap((64, 64, 64), cluster, adaptive_sigma)
+                    heatmap_mask += cluster_heatmap
+            heatmap_4d[i] = heatmap_mask
         if self.transform:
             subject = tio.Subject(
                 image=tio.ScalarImage(tensor=img),
-                mask=tio.LabelMap(tensor=mask)
+                heatmap=tio.LabelMap(tensor=heatmap_4d)
             )
             subject = self.transform(subject)
             img = subject['image'].data
-            mask = subject['mask'].data  # Add channel dimension back
-        if self.class_mapping is not None:
-            mask = remap_labels(mask, self.class_mapping)
-
-        return img, mask
+            heatmap_4d = subject['heatmap'].data # Ensure channels remain consistent
+        return img, heatmap_4d

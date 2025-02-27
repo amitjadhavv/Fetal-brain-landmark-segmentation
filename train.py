@@ -10,7 +10,7 @@ from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
 import  json
 from torch.optim.lr_scheduler import CosineAnnealingLR
-
+import time
 # Define augmentations using torchio
 transform = tio.Compose([
     tio.RandomFlip(axes=(0, 1, 2)),          # Randomly flip along axes
@@ -47,6 +47,7 @@ train_loss_history = []
 # # Training loop
 for epoch in range(Config.NUM_EPOCHS):
     model.train()
+    start_time = time.time()  # Start time tracking
     train_loss = 0
     train_metric = 0
     for images, heatmaps in train_dataloader:
@@ -70,10 +71,12 @@ for epoch in range(Config.NUM_EPOCHS):
         if dice.ndim > 0:
             dice = dice.mean()
         train_metric += dice.item() * images.size(0)
-    break
+
     train_loss /= len(train_dataloader)
     train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)
+    end_time = time.time()  # End time tracking
+    epoch_time = end_time - start_time
     print(f"Epoch {epoch+1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, Train Dice: {train_metric:.4f}")
     scheduler.step()
 model_save_path = "V_net_model_cropped.pth"

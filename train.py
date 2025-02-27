@@ -77,7 +77,7 @@ for epoch in range(Config.NUM_EPOCHS):
     train_metric /= len(train_dataloader)
     end_time = time.time()  # End time tracking
     epoch_time = end_time - start_time
-    print(f"Epoch {epoch+1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, Train Dice: {train_metric:.4f}")
+    print(f"Epoch {epoch+1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, Train Dice: {train_metric:.4f}, Time: {epoch_time:.2f} seconds")
     scheduler.step()
 model_save_path = "V_net_model_cropped.pth"
 torch.save(model.state_dict(), model_save_path)

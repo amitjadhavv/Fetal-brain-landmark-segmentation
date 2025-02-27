@@ -106,7 +106,11 @@ class MRIDataset(Dataset):
         mask = self.load_nifti(self.mask_paths[actual_idx])
         img = (img - np.min(img)) / (np.max(img) - np.min(img))
         img = np.expand_dims(img, axis=0)
+        mask = np.expand_dims(mask, axis=0)
         img = F.interpolate(torch.tensor(img).unsqueeze(0), size=(64, 64, 64), mode='trilinear', align_corners=False).squeeze(0)
+        mask = torch.tensor(mask, dtype=torch.long)
+        mask = F.interpolate(mask.unsqueeze(0).float(), size=(64, 64, 64), mode='nearest').squeeze(0)
+        mask = np.squeeze(mask.numpy(), axis=0)
         landmarks_dict = self.get_landmarks_by_type(mask)
         heatmap_4d = torch.zeros((len(self.landmark_types), 64, 64, 64), dtype=torch.float32)
         for i, landmark_type in enumerate(self.landmark_types):

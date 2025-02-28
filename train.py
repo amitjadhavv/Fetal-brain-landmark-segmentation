@@ -36,7 +36,7 @@ if torch.cuda.device_count()>1:
     model = DataParallel(model)
 model = model.to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE, weight_decay=1e-4)
-dice_loss_fn = DiceLoss(include_background=True, softmax=False, squared_pred=True,weight=norm_class_weights[1:], reduction="mean")
+dice_loss_fn = DiceLoss(include_background=True, softmax=False, squared_pred=True,weight=norm_class_weights, reduction="mean")
 dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
 kl_loss_fn = torch.nn.KLDivLoss(reduction="batchmean")
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
@@ -57,6 +57,8 @@ for epoch in range(Config.NUM_EPOCHS):
         background = 1 - torch.sum(heatmaps, dim=1, keepdim=True)  # Compute background class
         heatmaps = torch.cat([background, heatmaps], dim=1)
         heatmaps = heatmaps / (heatmaps.sum(dim=1, keepdim=True)+ 1e-6)
+
+
         print(heatmaps.shape, heatmaps.dtype, outputs.shape, outputs.dtype)
         if torch.isnan(outputs).any() or torch.isinf(outputs).any():
             print("⚠️ NaN or Inf detected in outputs!")

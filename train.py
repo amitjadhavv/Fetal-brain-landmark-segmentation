@@ -64,7 +64,6 @@ for epoch in range(Config.NUM_EPOCHS):
         heatmaps = heatmaps + 1e-6
         heatmap_sum = heatmaps.sum(dim=1, keepdim=True)
         heatmaps = heatmaps / heatmap_sum
-        print(heatmaps.shape, heatmaps.dtype, outputs.shape, outputs.dtype)
         if torch.isnan(outputs).any() or torch.isinf(outputs).any():
             print("⚠️ NaN or Inf detected in outputs!")
 
@@ -77,7 +76,6 @@ for epoch in range(Config.NUM_EPOCHS):
         # print(f"Output min/max: {outputs.min().item()} / {outputs.max().item()}")
         # print(f"Heatmap min/max: {heatmaps.min().item()} / {heatmaps.max().item()}")
         # print(f"Sum of heatmaps (should be close to 1): {heatmaps.sum(dim=1).min().item()} - {heatmaps.sum(dim=1).max().item()}")
-        print(dice_loss, kl_loss)
         loss = dice_loss + kl_loss
         # Backpropagation
         optimizer.zero_grad()
@@ -87,7 +85,6 @@ for epoch in range(Config.NUM_EPOCHS):
         dice = dice_metric(y_pred=outputs, y=heatmaps)
         if dice.ndim > 0:
             dice = dice.mean()
-        print(dice)
         train_metric += dice.item()
     train_loss /= len(train_dataloader)
     train_loss_history.append(train_loss)
@@ -102,6 +99,5 @@ print(f"Model state dictionary saved to {model_save_path}")
 loss_history = {
     "train_loss": train_loss_history
 }
-
 with open("loss_history.json", "w") as f:
     json.dump(loss_history, f)

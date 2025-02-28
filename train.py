@@ -55,17 +55,17 @@ for epoch in range(Config.NUM_EPOCHS):
         # Ensure heatmap and outputs have the same shape
         background = 1 - torch.sum(heatmaps, dim=1, keepdim=True)  # Compute background class
         heatmaps = torch.cat([background, heatmaps], dim=1)
-
+        heatmaps = heatmaps / heatmaps.sum(dim=1, keepdim=True)
         print(heatmaps.shape, heatmaps.dtype, outputs.shape, outputs.dtype)
         # Forward pass
         dice_loss = dice_loss_fn(outputs, heatmaps)
         kl_loss = kl_loss_fn(torch.log(outputs + 1e-6), heatmaps)
+        print(dice_loss, kl_loss)
         loss = dice_loss + kl_loss
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print(loss, type(loss))
         train_loss += loss.item()
         dice = dice_metric(y_pred=outputs, y=heatmaps)
         print(dice)

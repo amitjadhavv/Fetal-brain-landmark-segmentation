@@ -52,9 +52,10 @@ for epoch in range(Config.NUM_EPOCHS):
     for images, heatmaps in train_dataloader:
         images, heatmaps = images.to(Config.DEVICE), heatmaps.to(Config.DEVICE)
         outputs = model(images)
+
         # Ensure heatmap and outputs have the same shape
-        background = 1 - torch.sum(heatmaps, dim=1, keepdim=True)  # Compute background class
-        heatmaps = torch.cat([background, heatmaps], dim=1)
+        # background = 1 - torch.sum(heatmaps, dim=1, keepdim=True)  # Compute background class
+        # heatmaps = torch.cat([background, heatmaps], dim=1)
         heatmaps = heatmaps / heatmaps.sum(dim=1, keepdim=True)
         print(heatmaps.shape, heatmaps.dtype, outputs.shape, outputs.dtype)
         if torch.isnan(outputs).any() or torch.isinf(outputs).any():
@@ -65,7 +66,8 @@ for epoch in range(Config.NUM_EPOCHS):
 
         # Forward pass
         dice_loss = dice_loss_fn(outputs, heatmaps)
-        kl_loss = kl_loss_fn(torch.log(torch.clamp(outputs, min=1e-6)), heatmaps)
+        log_outputs = torch.log(torch.clamp(outputs, min=1e-6))
+        kl_loss = kl_loss_fn(log_outputs[:, 1:], heatmaps)
         print(dice_loss, kl_loss)
         loss = dice_loss + kl_loss
         # Backpropagation
@@ -74,10 +76,10 @@ for epoch in range(Config.NUM_EPOCHS):
         optimizer.step()
         train_loss += loss.item()
         dice = dice_metric(y_pred=outputs, y=heatmaps)
-        print(dice)
         if dice.ndim > 0:
             dice = dice.mean()
         train_metric += dice.item() * images.size(0)
+        print(dice)
         break
     train_loss /= len(train_dataloader)
     train_loss_history.append(train_loss)

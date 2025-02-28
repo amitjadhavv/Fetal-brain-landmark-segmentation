@@ -57,8 +57,8 @@ for epoch in range(Config.NUM_EPOCHS):
         background = 1 - torch.sum(heatmaps, dim=1, keepdim=True)
         background = torch.clamp(background, min=0) # Compute background class
         heatmaps = torch.cat([background, heatmaps], dim=1)
+        heatmaps = heatmaps + 1e-6
         heatmap_sum = heatmaps.sum(dim=1, keepdim=True)
-        heatmap_sum = torch.where(heatmap_sum == 0, torch.tensor(1e-6, device=heatmaps.device), heatmap_sum)
         heatmaps = heatmaps / heatmap_sum
         print(heatmaps.shape, heatmaps.dtype, outputs.shape, outputs.dtype)
         if torch.isnan(outputs).any() or torch.isinf(outputs).any():

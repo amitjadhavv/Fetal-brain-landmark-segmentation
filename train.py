@@ -37,7 +37,7 @@ if torch.cuda.device_count()>1:
 model = model.to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE, weight_decay=1e-4)
 dice_loss_fn = DiceLoss(include_background=True, softmax=False, squared_pred=True,weight=norm_class_weights, reduction="mean")
-dice_metric = DiceMetric(include_background=False)
+dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
 kl_loss_fn = torch.nn.KLDivLoss(reduction="batchmean")
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
 scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
@@ -57,9 +57,15 @@ for epoch in range(Config.NUM_EPOCHS):
         heatmaps = torch.cat([background, heatmaps], dim=1)
         heatmaps = heatmaps / heatmaps.sum(dim=1, keepdim=True)
         print(heatmaps.shape, heatmaps.dtype, outputs.shape, outputs.dtype)
+        if torch.isnan(outputs).any() or torch.isinf(outputs).any():
+            print("⚠️ NaN or Inf detected in outputs!")
+
+        if torch.isnan(heatmaps).any() or torch.isinf(heatmaps).any():
+            print("⚠️ NaN or Inf detected in heatmaps!")
+
         # Forward pass
         dice_loss = dice_loss_fn(outputs, heatmaps)
-        kl_loss = kl_loss_fn(torch.log(outputs + 1e-6), heatmaps)
+        kl_loss = kl_loss_fn(torch.log(torch.clamp(outputs, min=1e-6)), heatmaps)
         print(dice_loss, kl_loss)
         loss = dice_loss + kl_loss
         # Backpropagation
@@ -72,7 +78,7 @@ for epoch in range(Config.NUM_EPOCHS):
         if dice.ndim > 0:
             dice = dice.mean()
         train_metric += dice.item() * images.size(0)
-
+        break
     train_loss /= len(train_dataloader)
     train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)

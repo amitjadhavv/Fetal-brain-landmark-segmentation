@@ -87,7 +87,8 @@ for epoch in range(Config.NUM_EPOCHS):
         dice = dice_metric(y_pred=outputs, y=heatmaps)
         if dice.ndim > 0:
             dice = dice.mean()
-        train_metric += dice.item() * images.size(0)
+        print(dice)
+        train_metric += dice.item()
     train_loss /= len(train_dataloader)
     train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)

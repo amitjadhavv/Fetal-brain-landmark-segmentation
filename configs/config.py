@@ -15,8 +15,8 @@ class Config:
         return [os.path.join(cls.dir_path, "cropped-labels", i) for i in masks]
 
 # Hyperparameters
-    BATCH_SIZE = 1
+    BATCH_SIZE = 8
     LEARNING_RATE = 1e-3
     NUM_CLASSES = 5
-    NUM_EPOCHS = 5
+    NUM_EPOCHS = 1
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"

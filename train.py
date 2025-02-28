@@ -22,13 +22,12 @@ transform = tio.Compose([
 image_paths = Config.get_image_paths()
 mask_paths = Config.get_mask_paths()
 train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, augmentation_factor=1)
-train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True)
+train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
 print(len(train_dataloader))
 # class_weight calculation
 class_weights = [3.8217e-05, 2.6055e-01, 5.4443e-02, 1.4835e-01, 5.3661e-01]
 # Nrmalize so all weights sum to 1
 norm_class_weights = torch.tensor(class_weights, dtype=torch.float32)
-
 print("Normalized Class Weights:", norm_class_weights)
 
 # Initialize model
@@ -66,8 +65,10 @@ for epoch in range(Config.NUM_EPOCHS):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        print(loss, type(loss))
         train_loss += loss.item()
         dice = dice_metric(y_pred=outputs, y=heatmaps)
+        print(dice)
         if dice.ndim > 0:
             dice = dice.mean()
         train_metric += dice.item() * images.size(0)

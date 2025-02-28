@@ -56,7 +56,7 @@ for epoch in range(Config.NUM_EPOCHS):
         # Ensure heatmap and outputs have the same shape
         # background = 1 - torch.sum(heatmaps, dim=1, keepdim=True)  # Compute background class
         # heatmaps = torch.cat([background, heatmaps], dim=1)
-        heatmaps = heatmaps / heatmaps.sum(dim=1, keepdim=True)
+        heatmaps = heatmaps / (heatmaps.sum(dim=1, keepdim=True)+ 1e-6)
         print(heatmaps.shape, heatmaps.dtype, outputs.shape, outputs.dtype)
         if torch.isnan(outputs).any() or torch.isinf(outputs).any():
             print("⚠️ NaN or Inf detected in outputs!")

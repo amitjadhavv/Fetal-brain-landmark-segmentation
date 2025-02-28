@@ -17,6 +17,6 @@ class Config:
 # Hyperparameters
     BATCH_SIZE = 16
     LEARNING_RATE = 1e-3
-    NUM_CLASSES = 5
+    NUM_CLASSES = 4
     NUM_EPOCHS = 1
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"

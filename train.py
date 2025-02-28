@@ -25,7 +25,7 @@ train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=tra
 train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
 print(len(train_dataloader))
 # class_weight calculation
-class_weights = [3.8217e-05, 2.6055e-01, 5.4443e-02, 1.4835e-01, 5.3661e-01]
+class_weights = [2.6055e-01, 5.4443e-02, 1.4835e-01, 5.3661e-01] #3.8217e-05,
 # Nrmalize so all weights sum to 1
 norm_class_weights = torch.tensor(class_weights, dtype=torch.float32)
 print("Normalized Class Weights:", norm_class_weights)
@@ -52,11 +52,10 @@ for epoch in range(Config.NUM_EPOCHS):
     for images, heatmaps in train_dataloader:
         images, heatmaps = images.to(Config.DEVICE), heatmaps.to(Config.DEVICE)
         outputs = model(images)
-
         # Ensure heatmap and outputs have the same shape
-        background = 1 - torch.sum(heatmaps, dim=1, keepdim=True)
-        background = torch.clamp(background, min=0) # Compute background class
-        heatmaps = torch.cat([background, heatmaps], dim=1)
+        # background = 1 - torch.sum(heatmaps, dim=1, keepdim=True)
+        # background = torch.clamp(background, min=0) # Compute background class
+        # heatmaps = torch.cat([background, heatmaps], dim=1)
         heatmaps = heatmaps + 1e-6
         heatmap_sum = heatmaps.sum(dim=1, keepdim=True)
         heatmaps = heatmaps / heatmap_sum
@@ -70,13 +69,11 @@ for epoch in range(Config.NUM_EPOCHS):
         # Forward pass
         dice_loss = dice_loss_fn(outputs, heatmaps)
         log_outputs = torch.log(torch.clamp(outputs, min=1e-6))
-        kl_loss = kl_loss_fn(log_outputs[:, 1:], heatmaps[:, 1:])
+        kl_loss = kl_loss_fn(log_outputs, heatmaps)
         print(f"KL Loss: {kl_loss.item()}")
         print(f"Output min/max: {outputs.min().item()} / {outputs.max().item()}")
         print(f"Heatmap min/max: {heatmaps.min().item()} / {heatmaps.max().item()}")
-        print(
-            f"Sum of heatmaps (should be close to 1): {heatmaps.sum(dim=1).min().item()} - {heatmaps.sum(dim=1).max().item()}")
-
+        print(f"Sum of heatmaps (should be close to 1): {heatmaps.sum(dim=1).min().item()} - {heatmaps.sum(dim=1).max().item()}")
         print(dice_loss, kl_loss)
         loss = dice_loss + kl_loss
         # Backpropagation
@@ -89,6 +86,7 @@ for epoch in range(Config.NUM_EPOCHS):
             dice = dice.mean()
         train_metric += dice.item() * images.size(0)
         print(dice)
+        break
     train_loss /= len(train_dataloader)
     train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)

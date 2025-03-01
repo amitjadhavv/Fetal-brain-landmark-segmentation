@@ -52,16 +52,11 @@ for epoch in range(Config.NUM_EPOCHS):
     for images, heatmaps in train_dataloader:
         images, heatmaps = images.to(Config.DEVICE), heatmaps.to(Config.DEVICE)
         outputs = model(images)
-        heatmaps = heatmaps + 1e-6
-        heatmap_sum = heatmaps.sum(dim=1, keepdim=True)
-        heatmaps = heatmaps / heatmap_sum
-        log_outputs = torch.log(torch.clamp(outputs, min=1e-6))
-        kl_loss = kl_loss_fn(input=log_outputs[:, 1:], target=heatmaps)
         # Ensure heatmap and outputs have the same shape
         background = 1 - torch.sum(heatmaps, dim=1, keepdim=True)
         background = torch.clamp(background, min=0) # Compute background class
         heatmaps = torch.cat([background, heatmaps], dim=1)
-        heatmaps = heatmaps + 1e-6
+        heatmaps = heatmaps + 1e-12
         heatmap_sum = heatmaps.sum(dim=1, keepdim=True)
         heatmaps = heatmaps / heatmap_sum
         if torch.isnan(outputs).any() or torch.isinf(outputs).any():
@@ -72,7 +67,9 @@ for epoch in range(Config.NUM_EPOCHS):
 
         # Forward pass
         dice_loss = dice_loss_fn(outputs, heatmaps)
-        # print(f"KL Loss: {kl_loss.item()}")
+        log_outputs = torch.log(torch.clamp(outputs, min=1e-12))
+        kl_loss = kl_loss_fn(input=log_outputs, target=heatmaps)
+        print(f"KL Loss: {kl_loss.item()}, ")
         # print(f"Output min/max: {outputs.min().item()} / {outputs.max().item()}")
         # print(f"Heatmap min/max: {heatmaps.min().item()} / {heatmaps.max().item()}")
         # print(f"Sum of heatmaps (should be close to 1): {heatmaps.sum(dim=1).min().item()} - {heatmaps.sum(dim=1).max().item()}")

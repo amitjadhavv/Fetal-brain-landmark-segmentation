@@ -21,7 +21,7 @@ transform = tio.Compose([
 # Load dataset
 image_paths = Config.get_image_paths()
 mask_paths = Config.get_mask_paths()
-train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, augmentation_factor=1)
+train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, augmentation_factor=4)
 train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
 print(len(train_dataloader))
 # class_weight calculation
@@ -88,7 +88,8 @@ for epoch in range(Config.NUM_EPOCHS):
     train_metric /= len(train_dataloader)
     end_time = time.time()  # End time tracking
     epoch_time = end_time - start_time
-    print(f"Epoch {epoch+1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, Train Dice: {train_metric:.4f}, Time: {epoch_time:.2f} seconds")
+    current_lr = scheduler.get_last_lr()[0]
+    print(f"Epoch {epoch+1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, Train Dice: {train_metric:.4f}, Time: {epoch_time:.2f} seconds, Epoch {epoch+1} , Current LR: {current_lr}")
     scheduler.step()
 model_save_path = "V_net_model_cropped.pth"
 torch.save(model.state_dict(), model_save_path)

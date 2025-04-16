@@ -26,7 +26,6 @@ class VNet(nn.Module):
 
         # Final output layer
         self.final_conv = nn.Conv3d(16, num_classes, kernel_size=1)
-        self.sigmoid = nn.Sigmoid()  # Binary segmentation
 
     def conv_block(self, in_channels, out_channels, kernel_size=3, dilation=1):
         padding = (kernel_size // 2) * dilation  # Adjust padding for dilation

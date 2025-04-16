@@ -42,6 +42,7 @@ ce_loss = nn.CrossEntropyLoss(weight=norm_class_weights)
 # dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
 scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
+
 def combined_loss(logits, masks):
     # Cross-Entropy
     ce = ce_loss(logits, masks.squeeze(1).long())

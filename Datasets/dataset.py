@@ -110,4 +110,4 @@ class MRIDataset(Dataset):
             img = subject['image'].data
             mask = subject['mask'].data
 
-        return img, mask.squeeze(0)
+        return img, mask

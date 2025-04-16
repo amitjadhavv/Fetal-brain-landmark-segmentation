@@ -28,7 +28,7 @@ print(len(train_dataloader))
 # class_weight calculation
 class_weights = [3.8217e-05, 2.6055e-01, 5.4443e-02, 1.4835e-01, 5.3661e-01] #3.8217e-05,
 # Nrmalize so all weights sum to 1
-norm_class_weights = torch.tensor(class_weights, dtype=torch.float32)
+norm_class_weights = torch.tensor(class_weights, dtype=torch.float32).to(Config.DEVICE)
 print("Normalized Class Weights:", norm_class_weights)
 
 # Initialize model
@@ -44,7 +44,7 @@ ce_loss = nn.CrossEntropyLoss(weight=norm_class_weights)
 scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
 def combined_loss(logits, masks):
     # Cross-Entropy
-    ce = ce_loss(logits, masks.long())
+    ce = ce_loss(logits, masks.squeeze(1).long())
     # Dice (monai automatically does one-hot + softmax)
     d = dice_loss(logits, masks)
     return 0.5 * ce + 0.5 * d
@@ -66,8 +66,8 @@ for epoch in range(Config.NUM_EPOCHS):
         loss.backward()
         optimizer.step()
         train_loss += loss.item()
-        pred_labels = torch.argmax(nn.functional.softmax(outputs, dim=1), dim=1)
-        iou = jaccard_index(pred_labels, masks, task="multiclass", num_classes=Config.NUM_CLASSES)
+        pred_labels = torch.argmax(outputs, dim=1)
+        iou = jaccard_index(pred_labels, masks.squeeze(1), task="multiclass", num_classes=Config.NUM_CLASSES)
         train_metric += iou.item()
     train_loss /= len(train_dataloader)
     train_loss_history.append(train_loss)

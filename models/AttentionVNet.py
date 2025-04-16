@@ -1,3 +1,4 @@
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -31,28 +32,31 @@ class AttentionVNet(nn.Module):
     def __init__(self, num_classes=2):
         super(AttentionVNet, self).__init__()
 
-        # Encoder
         self.encoder1 = self.conv_block(1, 16)
         self.encoder2 = self.conv_block(16, 32)
         self.encoder3 = self.conv_block(32, 64)
         self.encoder4 = self.conv_block(64, 128)
 
-        # Bottleneck
         self.bottleneck = self.conv_block(128, 256)
 
-        # Attention Gates
+        # Simple DNN at bottleneck
+        self.dnn = nn.Sequential(
+            nn.Linear(256 * 2 * 2 * 2, 1024),
+            nn.ReLU(inplace=True),
+            nn.Linear(1024, 256 * 2 * 2 * 2),
+            nn.ReLU(inplace=True)
+        )
+
         self.att4 = AttentionBlock(256, 128, 128)
         self.att3 = AttentionBlock(128, 64, 64)
         self.att2 = AttentionBlock(64, 32, 32)
         self.att1 = AttentionBlock(32, 16, 16)
 
-        # Decoder
         self.decoder4 = self.conv_block(256 + 128, 128)
         self.decoder3 = self.conv_block(128 + 64, 64)
         self.decoder2 = self.conv_block(64 + 32, 32)
         self.decoder1 = self.conv_block(32 + 16, 16)
 
-        # Final layer
         self.final_conv = nn.Conv3d(16, num_classes, kernel_size=1)
 
     def conv_block(self, in_channels, out_channels):
@@ -66,16 +70,19 @@ class AttentionVNet(nn.Module):
         )
 
     def forward(self, x):
-        # Encoder
         enc1 = self.encoder1(x)
         enc2 = self.encoder2(F.max_pool3d(enc1, kernel_size=2, stride=2))
         enc3 = self.encoder3(F.max_pool3d(enc2, kernel_size=2, stride=2))
         enc4 = self.encoder4(F.max_pool3d(enc3, kernel_size=2, stride=2))
 
-        # Bottleneck
         bottleneck = self.bottleneck(F.max_pool3d(enc4, kernel_size=2, stride=2))
 
-        # Decoder + Attention
+        # Apply DNN at bottleneck
+        b_shape = bottleneck.shape  # (B, C, D, H, W)
+        b_flat = bottleneck.view(b_shape[0], -1)
+        b_flat = self.dnn(b_flat)
+        bottleneck = b_flat.view(b_shape)
+
         g4 = F.interpolate(bottleneck, scale_factor=2, mode="trilinear", align_corners=True)
         x4 = self.att4(g4, enc4)
         dec4 = self.decoder4(torch.cat([g4, x4], dim=1))

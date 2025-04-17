@@ -26,8 +26,7 @@ train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=tra
 train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
 print(len(train_dataloader))
 # class_weight calculation
-class_weights = [0.00714618, 1.64190224, 0.34320204, 1.00, 4.01944413]
-norm_class_weights = class_weights / sum(class_weights)
+norm_class_weights = [0.00101918, 0.23416625, 0.04894709, 0.14261888, 0.5732486 ]
 # Nrmalize so all weights sum to 1
 norm_class_weights = torch.tensor(norm_class_weights, dtype=torch.float32).to(Config.DEVICE)
 print("Normalized Class Weights:", norm_class_weights)

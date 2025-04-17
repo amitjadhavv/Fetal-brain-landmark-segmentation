@@ -43,11 +43,11 @@ total_voxels = voxel_counts.sum()
 frequencies = voxel_counts / total_voxels
 median_freq = np.median(frequencies[frequencies > 0])
 class_weights = median_freq / frequencies
-
+norm_class_weights = class_weights / class_weights.sum()
 print("Class frequencies:", frequencies)
 print("Median frequency:", median_freq)
-print("\n→ Class weights (median‑frequency balanced):", class_weights)
+print("\n→ Class weights (median‑frequency balanced):", norm_class_weights)
 
 # (Optional) persist the weights
-np.save("class_weights.npy", class_weights)
+np.save("class_weights.npy", norm_class_weights)
 print("Weights saved to class_weights.npy")

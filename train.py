@@ -27,7 +27,7 @@ train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuff
 print(len(train_dataloader))
 # class_weight calculation
 class_weights = [0.00714618, 1.64190224, 0.34320204, 1.00, 4.01944413]
-norm_class_weights = class_weights / class_weights.sum()
+norm_class_weights = class_weights / sum(class_weights)
 # Nrmalize so all weights sum to 1
 norm_class_weights = torch.tensor(norm_class_weights, dtype=torch.float32).to(Config.DEVICE)
 print("Normalized Class Weights:", norm_class_weights)

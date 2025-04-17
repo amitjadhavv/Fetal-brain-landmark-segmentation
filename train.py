@@ -22,7 +22,7 @@ transform = tio.Compose([
 # Load dataset
 image_paths = Config.get_image_paths()
 mask_paths = Config.get_mask_paths()
-train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, augmentation_factor=1)
+train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, augmentation_factor=4)
 train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
 print(len(train_dataloader))
 # class_weight calculation
@@ -51,6 +51,7 @@ def combined_loss(logits, masks):
     return 0.5 * ce + 0.5 * d
 
 train_loss_history = []
+max_train_metric = 0
 # # Training loop
 for epoch in range(Config.NUM_EPOCHS):
     model.train()
@@ -78,7 +79,12 @@ for epoch in range(Config.NUM_EPOCHS):
     current_lr = scheduler.get_last_lr()[0]
     print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, IoU Score: {train_metric:.4f}, {epoch_time:.2f} seconds, Epoch {epoch + 1} , Current LR: {current_lr}")
     scheduler.step()
-model_save_path = "V_net_model_cropped.pth"
+    if train_metric > 0.80:
+        if train_metric > max_train_metric:
+            max_train_metric = train_metric
+            torch.save(model.state_dict(), "AV_net_model_cropped_best.pth")
+            print(f"Model state dictionary saved to V_net_model_roi_best.pth at Epoch: {epoch + 1} with IoU Score: {train_metric:.4f}")
+model_save_path = "AV_net_model_cropped.pth"
 torch.save(model.state_dict(), model_save_path)
 print(f"Model state dictionary saved to {model_save_path}")
 loss_history = {

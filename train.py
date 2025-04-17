@@ -26,7 +26,7 @@ train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=tra
 train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
 print(len(train_dataloader))
 # class_weight calculation
-class_weights = [3.8217e-05, 2.6055e-01, 5.4443e-02, 1.4835e-01, 5.3661e-01] #3.8217e-05,
+class_weights = [0.00714618, 1.64190224, 0.34320204, 1.00, 4.01944413]
 # Nrmalize so all weights sum to 1
 norm_class_weights = torch.tensor(class_weights, dtype=torch.float32).to(Config.DEVICE)
 print("Normalized Class Weights:", norm_class_weights)
@@ -37,7 +37,7 @@ if torch.cuda.device_count()>1:
     model = DataParallel(model)
 model = model.to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE, weight_decay=1e-4)
-dice_loss = DiceLoss(include_background=True,to_onehot_y=True, softmax=True,weight=norm_class_weights, reduction="mean")
+dice_loss = DiceLoss(include_background=True,to_onehot_y=True, softmax=True, reduction="mean")
 ce_loss = nn.CrossEntropyLoss(weight=norm_class_weights)
 # dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)

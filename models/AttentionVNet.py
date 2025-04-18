@@ -41,9 +41,9 @@ class AttentionVNet(nn.Module):
 
         # Simple DNN at bottleneck
         self.dnn = nn.Sequential(
-            nn.Linear(256 * 2 * 2 * 2, 512),
+            nn.Linear(256 * 2 * 2 * 2, 1024),
             nn.ReLU(inplace=True),
-            nn.Linear(512, 256 * 2 * 2 * 2),
+            nn.Linear(1024, 256 * 2 * 2 * 2),
             nn.ReLU(inplace=True)
         )
 

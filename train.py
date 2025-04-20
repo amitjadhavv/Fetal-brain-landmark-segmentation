@@ -78,8 +78,7 @@ for epoch in range(Config.NUM_EPOCHS):
     epoch_time = end_time - start_time
     current_lr = scheduler.get_last_lr()[0]
     print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, IoU Score: {train_metric:.4f}, {epoch_time:.2f} seconds, Epoch {epoch + 1} , Current LR: {current_lr}")
-    if epoch > 900:
-        scheduler.step()
+    scheduler.step()
     if train_metric > 0.80:
         if train_metric > max_train_metric:
             max_train_metric = train_metric

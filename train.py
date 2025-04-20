@@ -48,7 +48,7 @@ def combined_loss(logits, masks):
     ce = ce_loss(logits, masks.squeeze(1).long())
     # Dice (monai automatically does one-hot + softmax)
     d = dice_loss(logits, masks)
-    return 0.5 * ce + 0.5 * d
+    return 0.5 * ce + 0.8 * d
 
 train_loss_history = []
 max_train_metric = 0

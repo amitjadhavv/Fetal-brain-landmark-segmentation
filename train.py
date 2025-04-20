@@ -37,7 +37,7 @@ if torch.cuda.device_count()>1:
     model = DataParallel(model)
 model = model.to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE, weight_decay=1e-4)
-dice_loss = DiceLoss(include_background=True,to_onehot_y=True, softmax=True, reduction="mean")
+dice_loss = DiceLoss(include_background=True,to_onehot_y=True, softmax=True, reduction="mean", weight=norm_class_weights)
 ce_loss = nn.CrossEntropyLoss(weight=norm_class_weights)
 # dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)

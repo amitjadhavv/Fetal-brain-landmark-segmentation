@@ -21,7 +21,7 @@ def robust_normalize(img, lower_percentile=1, upper_percentile=99):
     return normalized
 
 class MRIDataset(Dataset):
-    def __init__(self, image_paths, mask_paths, split="train", train_ratio=0.85, val_ratio=0.0,
+    def __init__(self, image_paths, mask_paths, split="train", train_ratio=0.05, val_ratio=0.0,
                  seed=123, transform=None, augmentation_factor=1,
                  lower_percentile=1, upper_percentile=99):
         """
@@ -81,24 +81,23 @@ class MRIDataset(Dataset):
         mask_path = self.mask_paths[actual_idx]
 
         # Load the MRI image and mask
-        img_npy = nib.load(image_path).get_fdata()
-        mask_npy = nib.load(mask_path).get_fdata()
+        img_np = nib.load(image_path).get_fdata()
+        mask_np = nib.load(mask_path).get_fdata()
 
         # Preprocess the image using the separate robust_normalize function
-        img_npy = robust_normalize(img_npy, self.lower_percentile, self.upper_percentile)
+        img_np = robust_normalize(img_np, self.lower_percentile, self.upper_percentile)
 
         # Expand channel dimension
-        img_npy = np.expand_dims(img_npy, axis=0)  # shape: (1, D, H, W)
-        mask_npy = np.expand_dims(mask_npy, axis=0)
-
-        # Convert to torch tensors
-        img = torch.tensor(img_npy, dtype=torch.float32)
-        mask = torch.tensor(mask_npy, dtype=torch.long)
-
-        # Resize both to 64x64x64
-        target_size = (32, 32, 32)
-        img = F.interpolate(img.unsqueeze(0), size=target_size, mode='trilinear', align_corners=False).squeeze(0)
-        mask = F.interpolate(mask.unsqueeze(0).float(), size=target_size, mode='nearest').squeeze(0)
+        img = torch.from_numpy(img_np).unsqueeze(0).float()  # (1, D, H, W)
+        mask = torch.from_numpy(mask_np).float()  # (5, D, H, W)
+        # ── resample both to a common 3‑D grid ──────────────────────────────────
+        target_size = (32, 32, 32)  # (D, H, W)
+        img = F.interpolate(img.unsqueeze(0), size=target_size,
+                            mode='trilinear', align_corners=False
+                            ).squeeze(0)  # (1, 32, 32, 32)
+        mask = F.interpolate(mask.unsqueeze(0), size=target_size,
+                             mode='trilinear', align_corners=False
+                             ).squeeze(0)
 
         # Apply TorchIO transforms (if any)
         if self.transform:

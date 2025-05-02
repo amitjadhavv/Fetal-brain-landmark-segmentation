@@ -1,41 +1,31 @@
 import torch
 
-def dice_coefficient(pred, target, smooth=1e-6):
-    pred = torch.argmax(pred, dim=1)
-    intersection = (pred * target).sum(dim=(1, 2, 3))
-    dice = (2. * intersection + smooth) / (pred.sum(dim=(1, 2, 3)) + target.sum(dim=(1, 2, 3)) + smooth)
-    return dice.mean().item()
+def peak_distance_mm(pred, target, spacing=(1,1,1), ignore_bg=True):
+    if ignore_bg and pred.shape[1] > 1:
+        pred   = pred[:, 1:]     # drop channel-0
+        target = target[:, 1:]
+    B, C, D, H, W = pred.shape
+    # flatten spatial dims
+    pred_flat   = pred.view(B, C, -1)            # (B,C, D*H*W)
+    target_flat = target.view(B, C, -1)
 
-def multiclass_dice_coefficient(pred, target, num_classes, smooth=1e-6):
-    """
-    Computes the multi-class Dice coefficient.
+    # index of max voxel per sample & class
+    pred_idx   = pred_flat.argmax(dim=-1)        # (B,C)  int64
+    target_idx = target_flat.argmax(dim=-1)      # (B,C)
 
-    Args:
-        pred (torch.Tensor): Model predictions with shape [B, C, D, H, W].
-        target (torch.Tensor): Ground truth with shape [B, D, H, W].
-        num_classes (int): Number of classes.
-        smooth (float): Smoothing factor to avoid division by zero.
+    # convert linear idx → (z,y,x) coordinates
+    z_pred   = pred_idx   // (H*W)
+    y_pred   = (pred_idx  % (H*W)) // W
+    x_pred   = pred_idx   %  W
 
-    Returns:
-        float: Mean Dice coefficient across all classes.
-    """
-    dice_scores = []
+    z_tgt   = target_idx // (H*W)
+    y_tgt   = (target_idx % (H*W)) // W
+    x_tgt   = target_idx %  W
 
-    # Ensure target tensor has no extra channel dimension
-    if target.ndim == 5 and target.size(1) == 1:
-        target = target.squeeze(1)  # Convert [B, 1, D, H, W] to [B, D, H, W]
+    # voxel-space difference → world-space (mm)
+    dz = (z_pred - z_tgt).float() * spacing[0]
+    dy = (y_pred - y_tgt).float() * spacing[1]
+    dx = (x_pred - x_tgt).float() * spacing[2]
 
-    for c in range(num_classes):
-        # Extract predictions for class c
-        pred_c = pred[:, c]  # Shape: [B, D, H, W]
-        target_c = (target == c).float()  # Binary mask for class c, Shape: [B, D, H, W]
-
-        # Compute Dice for class c
-        intersection = (pred_c * target_c).sum(dim=(1, 2, 3))  # Intersection over batch
-        dice = (2. * intersection + smooth) / (
-                pred_c.sum(dim=(1, 2, 3)) + target_c.sum(dim=(1, 2, 3)) + smooth
-        )
-        dice_scores.append(dice.mean().item())  # Average Dice for the class
-
-    # Return mean Dice score across all classes
-    return sum(dice_scores) / num_classes
+    dist = torch.sqrt(dx**2 + dy**2 + dz**2)     # (B,C)
+    return dist

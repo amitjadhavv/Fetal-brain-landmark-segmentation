@@ -14,10 +14,15 @@ class Config:
         masks = sorted(os.listdir(os.path.join(cls.dir_path, "cropped_labels")))
         return [os.path.join(cls.dir_path, "cropped_labels", i) for i in masks]
 
-# Hyperparameters
-    BATCH_SIZE = 16
+    @classmethod
+    def get_heatmap_paths(cls):
+        heatmaps = sorted(os.listdir(os.path.join(cls.dir_path, "cropped_5ch_heatmap")))
+        return [os.path.join(cls.dir_path, "cropped_5ch_heatmap", i) for i in heatmaps]
+
+    # Hyperparameters
+    BATCH_SIZE = 2
     LEARNING_RATE = 1e-4
     NUM_CLASSES = 5
-    NUM_EPOCHS = 100
+    NUM_EPOCHS = 500
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 

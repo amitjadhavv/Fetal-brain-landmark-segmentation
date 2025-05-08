@@ -66,7 +66,7 @@ for epoch in range(Config.NUM_EPOCHS):
     model.train()
     start_time = time.time()
     train_loss = 0
-    train_metric = 0
+    train_metric = 100
     for images, heatmaps in train_dataloader:
         images, heatmaps = images.to(Config.DEVICE), heatmaps.to(Config.DEVICE)
         # Forward pass
@@ -92,8 +92,8 @@ for epoch in range(Config.NUM_EPOCHS):
     current_lr = scheduler.get_last_lr()[0]
     print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, ED mm: {train_metric:.4f}, {epoch_time:.2f} seconds, Epoch {epoch + 1} , Current LR: {current_lr}")
     scheduler.step()
-    if train_loss < 0.2:
-        if train_metric > max_train_metric:
+    if train_loss < 0.05:
+        if train_metric < max_train_metric:
             max_train_metric = train_metric
             torch.save(model.state_dict(), "Vnet_model_cropped_best.pth")
             print(f"Model state dictionary saved to Vnet_model_cropped_best.pth at Epoch: {epoch + 1} with ED: {train_metric:.4f}")

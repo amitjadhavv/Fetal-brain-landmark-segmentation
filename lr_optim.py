@@ -2,7 +2,7 @@ import torch
 from torch.nn.parallel import DataParallel
 from torch.utils.data import DataLoader
 from Datasets.dataset import MRIDataset
-from models.VNet import VNet
+from models.VNet5 import VNet
 import torchio as tio
 import numpy as np
 from configs.config import Config

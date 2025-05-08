@@ -96,9 +96,9 @@ for epoch in range(Config.NUM_EPOCHS):
     if train_loss < 0.2:
         if train_metric > max_train_metric:
             max_train_metric = train_metric
-            torch.save(model.state_dict(), "AVnet_model_cropped_best.pth")
-            print(f"Model state dictionary saved to AVnet_model_cropped_best.pth at Epoch: {epoch + 1} with ED: {train_metric:.4f}")
-model_save_path = "AV_net_model_cropped.pth"
+            torch.save(model.state_dict(), "Vnet_model_cropped_best.pth")
+            print(f"Model state dictionary saved to Vnet_model_cropped_best.pth at Epoch: {epoch + 1} with ED: {train_metric:.4f}")
+model_save_path = "V_net_model_cropped.pth"
 torch.save(model.state_dict(), model_save_path)
 print(f"Model state dictionary saved to {model_save_path}")
 loss_history = {

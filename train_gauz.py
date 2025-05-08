@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn.parallel import DataParallel
 from torch.utils.data import DataLoader
 from Datasets.dataset import MRIDataset
-from models.AttentionVNet import AttentionVNet
+from models.VNet import VNet
 import torchio as tio
 from configs.config import Config
 from utils.metrics import peak_distance_mm
@@ -36,7 +36,7 @@ norm_class_weights = torch.tensor(norm_class_weights, dtype=torch.float32).to(Co
 print("Normalized Class Weights:", norm_class_weights)
 
 # Initialize model
-model = AttentionVNet(num_classes=Config.NUM_CLASSES)
+model = VNet(num_classes=Config.NUM_CLASSES)
 if torch.cuda.device_count()>1:
     model = DataParallel(model)
 model = model.to(Config.DEVICE)

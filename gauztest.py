@@ -21,4 +21,4 @@ def split_and_save_4d_heatmap(input_4d_path, output_dir):
         print(f"Saved: {output_filename}")
 
 # Example usage:
-split_and_save_4d_heatmap("/home/amit/PycharmProjects/fetalMRI/MRI_data/cropped_5ch_heatmap/heatmap_cropped_image_373.nii", "/home/amit/PycharmProjects/fetalMRI/MRI_data/output/")
+split_and_save_4d_heatmap("/home/amit/PycharmProjects/fetalMRI/MRI_data/cropped_heatmaps/heatmap_cropped_image_373.nii", "/home/amit/PycharmProjects/fetalMRI/MRI_data/output/")

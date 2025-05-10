@@ -42,22 +42,28 @@ if torch.cuda.device_count()>1:
 model = model.to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE, weight_decay=1e-4)
 dice_loss = DiceLoss(include_background=True, softmax=True, reduction="mean", weight=norm_class_weights)
-# ce_loss = nn.CrossEntropyLoss(weight=norm_class_weights)
+bce_loss = nn.BCEWithLogitsLoss(
+    reduction='mean',          # default; or 'sum', or 'none'
+    pos_weight= norm_class_weights           # optional tensor to rebalance 0/1
+)
 # dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
 scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
 
 def combined_loss(logits, heatmaps):
-    # Cross-Entropy
-    log_outputs = torch.log_softmax(logits, dim=1)
-    dl = dice_loss(logits, heatmaps)
-    # Weighted KL: scale each voxel's KL by class_weights
+    # KL loss
+    bce = bce_loss(logits, heatmaps)
+    B, C, D, H, W = logits.shape
+    N = D * H * W
+    log_outputs = torch.log_softmax(logits.view(B * C, N), dim=1)
+    q = heatmaps.view(B * C, N)
+    q = q / (q.sum(dim=1, keepdim=True) + 1e-8)
     kl_loss = torch.nn.functional.kl_div(
         log_outputs,  # (B, 5, D, H, W)
-        heatmaps,  # (B, 5, D, H, W)
-        reduction='mean'
+        q,  # (B, 5, D, H, W)
+        reduction='batchmean'
     )
-    return 0.5 * kl_loss + 0.5 * dl + 0.1 * total_variation_loss_3d(torch.softmax(logits, dim=1))
+    return 0.4 * kl_loss + 0.5 * bce + 0.1 * total_variation_loss_3d(torch.softmax(logits, dim=1))
 
 train_loss_history = []
 max_train_metric = 0

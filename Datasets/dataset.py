@@ -21,7 +21,7 @@ def robust_normalize(img, lower_percentile=1, upper_percentile=99):
     return normalized
 
 class MRIDataset(Dataset):
-    def __init__(self, image_paths, mask_paths, split="train", train_ratio=0.15, val_ratio=0.10,
+    def __init__(self, image_paths, mask_paths, split="train", train_ratio=0.80, val_ratio=0.10,
                  seed=123, transform=None, augmentation_factor=1,
                  lower_percentile=1, upper_percentile=99):
         """

@@ -26,15 +26,16 @@ transform = tio.Compose([
 # Load dataset
 image_paths = Config.get_image_paths()
 mask_paths = Config.get_heatmap_paths()
-train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, augmentation_factor=1)
+train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, augmentation_factor=8)
+val_dataset = MRIDataset(image_paths, mask_paths, split="val", transform=transform)
 train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
+val_loader = DataLoader(val_dataset,batch_size=Config.BATCH_SIZE,num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
 print(len(train_dataloader))
 # class_weight calculation
 norm_class_weights = torch.tensor([0.23416625, 0.04894709, 0.14261888, 0.5732486],dtype=torch.float32,device=Config.DEVICE)
 norm_class_weights = norm_class_weights.view(1, 4, 1, 1, 1)  #0.00101918,
 # Nrmalize so all weights sum to 1
 norm_class_weights = torch.tensor(norm_class_weights, dtype=torch.float32).to(Config.DEVICE)
-print("Normalized Class Weights:", norm_class_weights)
 
 # Initialize model
 model = VNet(num_classes=Config.NUM_CLASSES)
@@ -67,6 +68,7 @@ def combined_loss(logits, heatmaps):
     return 0.4 * kl_loss + 0.5 * bce + 0.1 * total_variation_loss_3d(torch.softmax(logits, dim=1))
 
 train_loss_history = []
+val_history =[]
 max_train_metric = 0
 # # Training loop
 for epoch in range(Config.NUM_EPOCHS):
@@ -78,7 +80,6 @@ for epoch in range(Config.NUM_EPOCHS):
         images, heatmaps = images.to(Config.DEVICE), heatmaps.to(Config.DEVICE)
         # Forward pass
         outputs = model(images)
-        print(heatmaps.shape, outputs.shape)
         loss = combined_loss(outputs, heatmaps)
         # print(loss.item())
         # Backpropagation
@@ -90,15 +91,31 @@ for epoch in range(Config.NUM_EPOCHS):
         dist_mm = peak_distance_mm(pred_probs, heatmaps, spacing=(1.0, 1.0, 1.0))
         # dist_mm: (B,C) – you can take mean over batch & classes
         mean_dist = dist_mm.mean().item()
-        # iou = jaccard_index(pred_labels, heatmaps.squeeze(1), task="multiclass", num_classes=Config.NUM_CLASSES)
         train_metric += mean_dist
     train_loss /= len(train_dataloader)
     train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)
+    model.eval()
+    epoch_val_loss, epoch_val_metric = 0.0, 0.0
+    with torch.no_grad():
+        for images, heatmaps in val_loader:
+            images = images.to(Config.DEVICE)
+            heatmaps = heatmaps.to(Config.DEVICE)
+
+            logits = model(images)
+            loss = combined_loss(logits, heatmaps)
+            epoch_val_loss += loss.item()
+
+            dist_mm = peak_distance_mm(torch.softmax(logits, 1), heatmaps, spacing=(1, 1, 1))
+            epoch_val_metric += dist_mm.mean().item()
+
+    epoch_val_loss /= len(val_loader)
+    epoch_val_metric /= len(val_loader)
+    val_history.append({"loss": epoch_val_loss, "ed_mm": epoch_val_metric})
     end_time = time.time()  # End time tracking
     epoch_time = end_time - start_time
     current_lr = scheduler.get_last_lr()[0]
-    print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, ED mm: {train_metric:.4f}, {epoch_time:.2f} seconds, Epoch {epoch + 1} , Current LR: {current_lr}")
+    print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, train ED mm: {train_metric:.4f}, val loss:{epoch_val_loss:4f}, val ED mm:{epoch_val_metric:4f} {epoch_time:.2f} seconds, Epoch {epoch + 1} , Current LR: {current_lr}")
     scheduler.step()
     if train_loss < 0.05:
         if train_metric < max_train_metric:

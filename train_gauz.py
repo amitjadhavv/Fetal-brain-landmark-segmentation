@@ -30,7 +30,8 @@ train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=tra
 train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
 print(len(train_dataloader))
 # class_weight calculation
-norm_class_weights = [0.00101918, 0.23416625, 0.04894709, 0.14261888, 0.5732486 ]
+norm_class_weights = torch.tensor([0.23416625, 0.04894709, 0.14261888, 0.5732486],dtype=torch.float32,device=Config.DEVICE)
+norm_class_weights = norm_class_weights.view(1, 4, 1, 1, 1)  #0.00101918,
 # Nrmalize so all weights sum to 1
 norm_class_weights = torch.tensor(norm_class_weights, dtype=torch.float32).to(Config.DEVICE)
 print("Normalized Class Weights:", norm_class_weights)
@@ -77,6 +78,7 @@ for epoch in range(Config.NUM_EPOCHS):
         images, heatmaps = images.to(Config.DEVICE), heatmaps.to(Config.DEVICE)
         # Forward pass
         outputs = model(images)
+        print(heatmaps.shape, outputs.shape)
         loss = combined_loss(outputs, heatmaps)
         # print(loss.item())
         # Backpropagation

@@ -74,8 +74,8 @@ max_train_metric = 0
 for epoch in range(Config.NUM_EPOCHS):
     model.train()
     start_time = time.time()
-    train_loss = 0
-    train_metric = 100
+    train_loss = 0.0
+    train_metric = 100.0
     for images, heatmaps in train_dataloader:
         images, heatmaps = images.to(Config.DEVICE), heatmaps.to(Config.DEVICE)
         # Forward pass
@@ -88,7 +88,7 @@ for epoch in range(Config.NUM_EPOCHS):
         optimizer.step()
         train_loss += loss.item()
         pred_probs = torch.softmax(outputs, dim=1)
-        dist_mm = peak_distance_mm(pred_probs, heatmaps, spacing=(1.0, 1.0, 1.0))
+        dist_mm = peak_distance_mm(pred_probs, heatmaps, spacing=(2.3438, 2.3438, 2.3250))
         # dist_mm: (B,C) – you can take mean over batch & classes
         mean_dist = dist_mm.mean().item()
         train_metric += mean_dist
@@ -96,7 +96,8 @@ for epoch in range(Config.NUM_EPOCHS):
     train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)
     model.eval()
-    epoch_val_loss, epoch_val_metric = 0.0, 0.0
+    val_loss = 0.0
+    val_metric = 0.0
     with torch.no_grad():
         for images, heatmaps in val_loader:
             images = images.to(Config.DEVICE)
@@ -106,18 +107,18 @@ for epoch in range(Config.NUM_EPOCHS):
             loss = combined_loss(logits, heatmaps)
             epoch_val_loss += loss.item()
 
-            dist_mm = peak_distance_mm(torch.softmax(logits, 1), heatmaps, spacing=(1, 1, 1))
+            dist_mm = peak_distance_mm(torch.softmax(logits, 1), heatmaps, spacing=(2.3438, 2.3438, 2.3250))
             epoch_val_metric += dist_mm.mean().item()
 
-    epoch_val_loss /= len(val_loader)
-    epoch_val_metric /= len(val_loader)
-    val_history.append({"loss": epoch_val_loss, "ed_mm": epoch_val_metric})
+    val_loss /= len(val_loader)
+    val_metric /= len(val_loader)
+    val_history.append({"loss": val_loss, "ed_mm": val_metric})
     end_time = time.time()  # End time tracking
     epoch_time = end_time - start_time
     current_lr = scheduler.get_last_lr()[0]
-    print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, train ED mm: {train_metric:.4f}, val loss:{epoch_val_loss:4f}, val ED mm:{epoch_val_metric:4f} {epoch_time:.2f} seconds, Epoch {epoch + 1} , Current LR: {current_lr}")
+    print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, train ED mm: {train_metric:.4f}, val loss:{val_loss:4f}, val ED mm:{val_metric:4f} {epoch_time:.2f} seconds, Epoch {epoch + 1} , Current LR: {current_lr}")
     scheduler.step()
-    if train_loss < 0.05:
+    if val_loss < 0.05:
         if train_metric < max_train_metric:
             max_train_metric = train_metric
             torch.save(model.state_dict(), "Vnet_model_cropped_best.pth")
@@ -125,8 +126,13 @@ for epoch in range(Config.NUM_EPOCHS):
 model_save_path = "V_net_model_cropped.pth"
 torch.save(model.state_dict(), model_save_path)
 print(f"Model state dictionary saved to {model_save_path}")
-loss_history = {
-    "train_loss": train_loss_history
-}
-with open("loss_history.json", "w") as f:
-    json.dump(loss_history, f)
+# train_loss_history = {
+#     "train_loss": train_loss_history
+# }
+# val_loss_history = {
+#     "val_loss": val_history
+# }
+# with open("train_loss_history.json", "w") as f:
+#     json.dump(train_loss_history, f)
+# with open("val_loss_history.json", "w") as f:
+#     json.dump(val_loss_history, f)

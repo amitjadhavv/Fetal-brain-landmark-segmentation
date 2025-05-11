@@ -69,7 +69,7 @@ def combined_loss(logits, heatmaps):
 
 train_loss_history = []
 val_history =[]
-max_train_metric = 0
+max_val_metric = 0
 # # Training loop
 for epoch in range(Config.NUM_EPOCHS):
     model.train()
@@ -119,7 +119,7 @@ for epoch in range(Config.NUM_EPOCHS):
     print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, train ED mm: {train_metric:.4f}, val loss:{val_loss:4f}, val ED mm:{val_metric:4f} {epoch_time:.2f} seconds, Epoch {epoch + 1} , Current LR: {current_lr}")
     scheduler.step()
     if val_loss < 0.05:
-        if train_metric < max_train_metric:
+        if train_metric < max_val_metric:
             max_train_metric = train_metric
             torch.save(model.state_dict(), "Vnet_model_cropped_best.pth")
             print(f"Model state dictionary saved to Vnet_model_cropped_best.pth at Epoch: {epoch + 1} with ED: {train_metric:.4f}")

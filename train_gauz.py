@@ -105,10 +105,10 @@ for epoch in range(Config.NUM_EPOCHS):
 
             logits = model(images)
             loss = combined_loss(logits, heatmaps)
-            epoch_val_loss += loss.item()
+            val_loss += loss.item()
 
             dist_mm = peak_distance_mm(torch.softmax(logits, 1), heatmaps, spacing=(2.3438, 2.3438, 2.3250))
-            epoch_val_metric += dist_mm.mean().item()
+            val_metric += dist_mm.mean().item()
 
     val_loss /= len(val_loader)
     val_metric /= len(val_loader)

@@ -9,7 +9,7 @@ from configs.config import Config
 from utils.metrics import peak_distance_mm
 from monai.losses import DiceLoss
 import  json
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 import time
 from torchmetrics.functional import jaccard_index
 from utils.loss import total_variation_loss_3d
@@ -18,15 +18,16 @@ import warnings
 warnings.filterwarnings("ignore")
 
 transform = tio.Compose([
-    tio.RandomFlip(axes=(0, 1, 2)),          # Randomly flip along axes
-    tio.RandomAffine(scales=(0.9, 1.1), degrees=30),  # Apply random scaling and rotation
-    tio.RandomNoise(mean=0.0, std=0.1)
-    # Add random noise
+    tio.RandomFlip(axes=(0, 1, 2)),
+    tio.RandomAffine(scales=(0.85, 1.15), degrees=45),
+    tio.RandomElasticDeformation(),
+    tio.RandomGamma(log_gamma=(0.7, 1.3)),
+    tio.RandomNoise(mean=0.0, std=0.15)
 ])
 # Load dataset
 image_paths = Config.get_image_paths()
 mask_paths = Config.get_heatmap_paths()
-train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, augmentation_factor=8)
+train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=transform, augmentation_factor=4)
 val_dataset = MRIDataset(image_paths, mask_paths, split="val", transform=transform)
 train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
 val_loader = DataLoader(val_dataset,batch_size=Config.BATCH_SIZE,num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
@@ -50,7 +51,7 @@ bce_loss = nn.BCEWithLogitsLoss(
 )
 # dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
-scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
+scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=1e-6)
 
 def combined_loss(logits, heatmaps):
     # KL loss
@@ -65,7 +66,7 @@ def combined_loss(logits, heatmaps):
         q,  # (B, 5, D, H, W)
         reduction='batchmean'
     )
-    return 0.4 * kl_loss + 0.5 * bce + 0.1 * total_variation_loss_3d(torch.softmax(logits, dim=1))
+    return 0.2 * kl_loss + 0.7 * bce + 0.1 * total_variation_loss_3d(torch.softmax(logits, dim=1))
 
 train_loss_history = []
 val_history =[]

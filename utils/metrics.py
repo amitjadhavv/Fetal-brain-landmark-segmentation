@@ -1,31 +1,39 @@
 import torch
-
-def peak_distance_mm(pred, target, spacing=(1,1,1), ignore_bg=True):
+def peak_distance_mm(pred, target, spacing=(1,1,1), ignore_bg=True, topk=2):
     if ignore_bg and pred.shape[1] > 1:
-        pred   = pred[:, 1:]     # drop channel-0
+        pred   = pred[:, 1:]
         target = target[:, 1:]
+
     B, C, D, H, W = pred.shape
-    # flatten spatial dims
-    pred_flat   = pred.view(B, C, -1)            # (B,C, D*H*W)
-    target_flat = target.view(B, C, -1)
+    result = []
 
-    # index of max voxel per sample & class
-    pred_idx   = pred_flat.argmax(dim=-1)        # (B,C)  int64
-    target_idx = target_flat.argmax(dim=-1)      # (B,C)
+    for b in range(B):
+        dist_per_channel = []
+        for c in range(C):
+            tk = topk if c in [0, 2] else 1  # adjust for channels with multiple peaks
 
-    # convert linear idx → (z,y,x) coordinates
-    z_pred   = pred_idx   // (H*W)
-    y_pred   = (pred_idx  % (H*W)) // W
-    x_pred   = pred_idx   %  W
+            pred_flat = pred[b, c].view(-1)
+            tgt_flat = target[b, c].view(-1)
 
-    z_tgt   = target_idx // (H*W)
-    y_tgt   = (target_idx % (H*W)) // W
-    x_tgt   = target_idx %  W
+            pred_topk = torch.topk(pred_flat, tk).indices
+            tgt_topk = torch.topk(tgt_flat, tk).indices
 
-    # voxel-space difference → world-space (mm)
-    dz = (z_pred - z_tgt).float() * spacing[0]
-    dy = (y_pred - y_tgt).float() * spacing[1]
-    dx = (x_pred - x_tgt).float() * spacing[2]
+            def idx_to_coords(idx):
+                z = idx // (H * W)
+                y = (idx % (H * W)) // W
+                x = idx % W
+                return torch.stack([z, y, x], dim=1).float()
 
-    dist = torch.sqrt(dx**2 + dy**2 + dz**2)     # (B,C)
-    return dist
+            pred_coords = idx_to_coords(pred_topk)
+            tgt_coords = idx_to_coords(tgt_topk)
+
+            pred_coords *= torch.tensor(spacing).float()
+            tgt_coords *= torch.tensor(spacing).float()
+
+            dists = torch.cdist(pred_coords, tgt_coords)
+            min_dists = dists.min(dim=1)[0]
+            dist_per_channel.append(min_dists.mean().item())
+
+        result.append(dist_per_channel)
+
+    return torch.tensor(result)

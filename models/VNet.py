@@ -38,6 +38,7 @@ class VNet(nn.Module):
             nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
             nn.InstanceNorm3d(out_channels),
             nn.ReLU(inplace=True),
+            nn.Dropout3d(p=0.1),
             nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
             nn.InstanceNorm3d(out_channels),
             nn.ReLU(inplace=True),

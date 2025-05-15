@@ -81,9 +81,16 @@ class MRIDataset(Dataset):
         mask_path = self.mask_paths[actual_idx]
 
         # Load the MRI image and mask
-        img_np = nib.load(image_path).get_fdata()
         mask_np = nib.load(mask_path).get_fdata()
+        nii = nib.load(image_path)  # 1) read cropped file
+        img_np = nii.get_fdata(dtype=np.float32)  # (D, H, W) or (D, H, W, 1)
 
+        orig_spacing = np.abs(nii.header.get_zooms()[:3])  # (sx, sy, sz)  mm/vox
+        crop_shape = np.array(img_np.shape[:3])  # (D, H, W)
+
+        # you will down-sample every cube to (32,32,32) later:
+        scale = crop_shape / np.array((32, 32, 32))  # (dx, dy, dz)
+        spacing_mm = tuple(orig_spacing * scale)  # mm per resampled voxel
         # Preprocess the image using the separate robust_normalize function
         img_np = robust_normalize(img_np, self.lower_percentile, self.upper_percentile)
 
@@ -96,7 +103,7 @@ class MRIDataset(Dataset):
                             mode='trilinear', align_corners=False
                             ).squeeze(0)  # (1, 32, 32, 32)
         mask = F.interpolate(mask.unsqueeze(0), size=target_size,
-                             mode='trilinear', align_corners=False
+                             mode='nearest', align_corners=False
                              ).squeeze(0)
 
         # Apply TorchIO transforms (if any)
@@ -109,4 +116,4 @@ class MRIDataset(Dataset):
             img = subject['image'].data
             mask = subject['mask'].data
 
-        return img, mask
+        return img, mask, spacing_mm

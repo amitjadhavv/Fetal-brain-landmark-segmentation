@@ -1,4 +1,5 @@
 import torch
+from configs.config import Config
 def peak_distance_mm(pred, target, spacing=(1,1,1), ignore_bg=True, topk=2):
     if ignore_bg and pred.shape[1] > 1:
         pred   = pred[:, 1:]
@@ -27,8 +28,8 @@ def peak_distance_mm(pred, target, spacing=(1,1,1), ignore_bg=True, topk=2):
             pred_coords = idx_to_coords(pred_topk)
             tgt_coords = idx_to_coords(tgt_topk)
 
-            pred_coords *= torch.tensor(spacing).float()
-            tgt_coords *= torch.tensor(spacing).float()
+            pred_coords *= torch.tensor(spacing).float().to(Config.DEVICE)
+            tgt_coords *= torch.tensor(spacing).float().to(Config.DEVICE)
 
             dists = torch.cdist(pred_coords, tgt_coords)
             min_dists = dists.min(dim=1)[0]

@@ -84,7 +84,6 @@ for epoch in range(Config.NUM_EPOCHS):
         loss = combined_loss(outputs, heatmaps)
         if isinstance(spacings, torch.Tensor):  # spac.shape == (B,3)
             spacings = [tuple(s.cpu().tolist()) for s in spacings]
-            print(spacings)
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()

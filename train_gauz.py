@@ -9,7 +9,7 @@ from configs.config import Config
 from utils.metrics import peak_distance_mm
 from monai.losses import DiceLoss
 import  json
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import time
 from torchmetrics.functional import jaccard_index
 from utils.loss import total_variation_loss_3d
@@ -51,7 +51,8 @@ bce_loss = nn.BCEWithLogitsLoss(
 )
 # dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
-scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=1e-6)
+scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
+# scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=1e-6)
 
 def combined_loss(logits, heatmaps):
     # KL loss

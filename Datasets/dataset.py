@@ -90,7 +90,8 @@ class MRIDataset(Dataset):
 
         # you will down-sample every cube to (32,32,32) later:
         scale = crop_shape / np.array((32, 32, 32))  # (dx, dy, dz)
-        spacing_mm = tuple(orig_spacing * scale)  # mm per resampled voxel
+        spacing_mm = torch.from_numpy((np.array(orig_spacing) * scale)).float()
+        # mm per resampled voxel
         # Preprocess the image using the separate robust_normalize function
         img_np = robust_normalize(img_np, self.lower_percentile, self.upper_percentile)
 
@@ -103,7 +104,7 @@ class MRIDataset(Dataset):
                             mode='trilinear', align_corners=False
                             ).squeeze(0)  # (1, 32, 32, 32)
         mask = F.interpolate(mask.unsqueeze(0), size=target_size,
-                             mode='nearest', align_corners=False
+                             mode='trilinear', align_corners=False
                              ).squeeze(0)
 
         # Apply TorchIO transforms (if any)

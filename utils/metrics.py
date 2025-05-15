@@ -18,7 +18,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 from scipy.ndimage import maximum_filter
-
+import numpy as np
 from configs.config import Config  # 🚀 enforce one global device
 
 __all__ = ["ed_mm_mixed_batch"]
@@ -37,7 +37,8 @@ def _two_highest_peaks(volume: Tensor, thresh: float = 0.5) -> Tensor:
     filt    = maximum_filter(vol_cpu, size=3)
     mask    = (vol_cpu == filt) & (vol_cpu > vol_cpu.max() * thresh)
 
-    coords = torch.from_numpy(mask.nonzero()).float()      # (n,3) CPU
+    nonzero_coords = np.array(np.nonzero(mask)).T  # Convert to (n,3) array
+    coords = torch.from_numpy(nonzero_coords).float() # (n,3) CPU
     vals   = torch.from_numpy(vol_cpu[mask]).float()       # (n,)  CPU
 
     if coords.shape[0] == 0:

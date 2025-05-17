@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn.parallel import DataParallel
 from torch.utils.data import DataLoader
 from Datasets.dataset import MRIDataset
-from models.VNet import VNet
+from models.AttentionVNet import AttentionVNet
 import torchio as tio
 from configs.config import Config
 from monai.losses import DiceLoss
@@ -38,7 +38,7 @@ norm_class_weights = norm_class_weights.view(1, 4, 1, 1, 1)  #0.00101918,
 norm_class_weights = torch.tensor(norm_class_weights, dtype=torch.float32).to(Config.DEVICE)
 
 # Initialize model
-model = VNet(num_classes=Config.NUM_CLASSES)
+model = AttentionVNet(num_classes=Config.NUM_CLASSES)
 if torch.cuda.device_count()>1:
     model = DataParallel(model)
 model = model.to(Config.DEVICE)

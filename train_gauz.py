@@ -9,7 +9,7 @@ from configs.config import Config
 from monai.losses import DiceLoss
 from utils.metrics import ed_mm_mixed_batch
 import  json
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import OneCycleLR
 import time
 from utils.loss import total_variation_loss_3d
 # Define augmentations using torchio
@@ -49,7 +49,14 @@ bce_loss = nn.BCEWithLogitsLoss(
     pos_weight= norm_class_weights           # optional tensor to rebalance 0/1
 )
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
-scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-9)
+# scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-9)
+scheduler = OneCycleLR(
+    optimizer,
+    max_lr=1e-3,
+    steps_per_epoch=len(train_dataloader),
+    epochs=Config.NUM_EPOCHS,
+    pct_start=0.1
+)
 # scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=1e-6)
 
 def combined_loss(logits, heatmaps):
@@ -125,9 +132,9 @@ for epoch in range(Config.NUM_EPOCHS):
     if val_loss < 0.05:
         if train_metric < best_val_metric:
             best_train_metric = train_metric
-            torch.save(model.state_dict(), "Vnet_model_cropped_best.pth")
+            torch.save(model.state_dict(), "Vnet_model_cropped_best1.pth")
             print(f"Model state dictionary saved to Vnet_model_cropped_best.pth at Epoch: {epoch + 1} with ED: {train_metric:.4f}")
-model_save_path = "V_net_model_cropped.pth"
+model_save_path = "V_net_model_cropped1.pth"
 torch.save(model.state_dict(), model_save_path)
 print(f"Model state dictionary saved to {model_save_path}")
 # train_loss_history = {

@@ -49,7 +49,7 @@ bce_loss = nn.BCEWithLogitsLoss(
     pos_weight= norm_class_weights           # optional tensor to rebalance 0/1
 )
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
-scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
+scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-9)
 # scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=1e-6)
 
 def combined_loss(logits, heatmaps):
@@ -66,7 +66,7 @@ def combined_loss(logits, heatmaps):
         reduction='batchmean'
     )
     tv = total_variation_loss_3d(torch.softmax(logits, dim=1))
-    return 0.7 * bce + 0.2 * kl + 0.1 * tv
+    return 0.7 * bce + 0.3 * kl + 0.1 * tv
 
 train_loss_history = []
 val_history =[]

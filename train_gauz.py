@@ -52,7 +52,7 @@ bce_loss = nn.BCEWithLogitsLoss(
 # scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-9)
 scheduler = OneCycleLR(
     optimizer,
-    max_lr=1e-3,
+    max_lr=7e-3,
     steps_per_epoch=len(train_dataloader),
     epochs=Config.NUM_EPOCHS,
     pct_start=0.1

@@ -49,7 +49,7 @@ bce_loss = nn.BCEWithLogitsLoss(
     pos_weight= norm_class_weights           # optional tensor to rebalance 0/1
 )
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
-scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-7)
+scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
 # scheduler = OneCycleLR(
 #     optimizer,
 #     max_lr=7e-3,

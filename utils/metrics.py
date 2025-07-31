@@ -114,3 +114,57 @@ def ed_mm_mixed_batch(
         sample_mm[b] = torch.stack(dists).mean()       # 6 landmarks → one value
 
     return sample_mm.mean().item()
+def ed_mm_per_landmark_batch(
+    pred: Tensor,
+    gt: Tensor,
+    spacings: Sequence[Tuple[float, float, float]],
+) -> List[List[float]]:
+    """
+    Compute Euclidean distances (mm) for each landmark separately.
+
+    Returns
+    -------
+    per_sample : list of length B, each a list [eyes, nose, temporal, cerebellum]
+    """
+    assert pred.shape == gt.shape, "pred and gt must have identical shape"
+    B, C, D, H, W = pred.shape
+    assert C == 4, "Expecting exactly 4 channels"
+    assert len(spacings) == B, "Need one spacing tuple per batch item"
+
+    pred = pred.to(Config.DEVICE)
+    gt   = gt.to(Config.DEVICE)
+
+    per_sample = []
+
+    for b in range(B):
+        s = torch.tensor(spacings[b], dtype=torch.float32).to(Config.DEVICE)
+
+        # Nose (channel 1)
+        g_flat = gt[b, 1].view(-1); g_idx = torch.argmax(g_flat)
+        p_flat = pred[b, 1].view(-1); p_idx = torch.argmax(p_flat)
+        g_xyz = torch.stack(torch.unravel_index(g_idx, (D,H,W))).float()
+        p_xyz = torch.stack(torch.unravel_index(p_idx, (D,H,W))).float()
+        nose_dist = ((p_xyz - g_xyz) * s).norm().item()
+
+        # Cerebellum (channel 3)
+        g_flat = gt[b, 3].view(-1); g_idx = torch.argmax(g_flat)
+        p_flat = pred[b, 3].view(-1); p_idx = torch.argmax(p_flat)
+        g_xyz = torch.stack(torch.unravel_index(g_idx, (D,H,W))).float()
+        p_xyz = torch.stack(torch.unravel_index(p_idx, (D,H,W))).float()
+        cereb_dist = ((p_xyz - g_xyz) * s).norm().item()
+
+        # Eyes (channel 0) – average of two peaks
+        p_pts = _two_highest_peaks(pred[b, 0])
+        g_pts = _two_highest_peaks(gt[b, 0])
+        cost = torch.cdist(p_pts * s, g_pts * s)
+        eyes_dist = torch.min(cost, dim=1)[0].mean().item()
+
+        # Temporal lobes (channel 2) – average of two peaks
+        p_pts = _two_highest_peaks(pred[b, 2])
+        g_pts = _two_highest_peaks(gt[b, 2])
+        cost = torch.cdist(p_pts * s, g_pts * s)
+        temporal_dist = torch.min(cost, dim=1)[0].mean().item()
+
+        per_sample.append([eyes_dist, nose_dist, temporal_dist, cereb_dist])
+
+    return per_sample

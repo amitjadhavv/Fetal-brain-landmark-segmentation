@@ -4,9 +4,10 @@ from torch.utils.data import DataLoader
 from Datasets.dataset import MRIDataset
 from configs.config import Config
 from models.AttentionVNet import AttentionVNet
+from utils.metrics import ed_mm_mixed_batch
 
 image_paths = Config.get_image_paths()
-mask_paths = Config.get_mask_paths()
+mask_paths = Config.get_heatmap_paths()
 # Load the test dataset
 test_dataset = MRIDataset(image_paths, mask_paths, split="test")
 test_dataloader = DataLoader(test_dataset, batch_size=Config.BATCH_SIZE, shuffle=False)
@@ -23,27 +24,18 @@ if any(key.startswith("module.") for key in state_dict.keys()):
 
 model.load_state_dict(state_dict)
 model.eval()
-val_loss = 0.0
-val_metric = 0.0
+test_metric = 0.0
 
 with torch.no_grad():
-    for images, masks in test_dataloader:
-        images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
-        print(images.shape(),masks.shape())
-        # Forward pass
-        probs = torch.softmax(model(images), dim=1)  # (B, 5, D, H, W)
-        pred_labels = torch.argmax(probs, dim=1)  # (B, D, H, W)
-
-        # ── convert to one‑hot so DiceMetric sees 5 channels ─────────────────
-        pred_1hot = torch.nn.functional.one_hot(pred_labels, num_classes=5)  # (B, D, H, W, 5)
-        pred_1hot = pred_1hot.permute(0, 4, 1, 2, 3).float()  # (B, 5, D, H, W)
-
-        masks_1hot = torch.nn.functional.one_hot(masks, num_classes=5)
-        masks_1hot = masks_1hot.permute(0, 4, 1, 2, 3).float()
-
-        dice = dice_metric(y_pred=pred_labels, y=masks_1hot)
-        dice = dice.mean()
-        val_metric += dice.item()
+    for images, heatmaps, spacings in test_dataloader:
+        images = images.to(Config.DEVICE)
+        heatmaps = heatmaps.to(Config.DEVICE)
+        if isinstance(spacings, torch.Tensor):  # spac.shape == (B,3)
+            spacing_list = [tuple(s.cpu().tolist()) for s in spacings]
+        logits = model(images)
+        probs = torch.sigmoid(logits)
+        dist_mm = ed_mm_mixed_batch(probs, heatmaps, spacings)
+        test_metric += dist_mm
     # Aggregate Dice scores
-    val_metric /= len(test_dataloader)
-    print(f"Mean Dice Coefficient: {val_metric:.4f}")
+    test_metric /= len(test_dataloader)
+    print(f"Mean Dice Coefficient: {test_metric:.4f}")

@@ -20,8 +20,8 @@ class Config:
         return [os.path.join(cls.dir_path, "cropped_heatmaps", i) for i in heatmaps]
 
     # Hyperparameters
-    BATCH_SIZE = 32
-    LEARNING_RATE = 1e-3
+    BATCH_SIZE = 1
+    LEARNING_RATE = 4e-5
     NUM_CLASSES = 4
     NUM_EPOCHS = 1000
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"

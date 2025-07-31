@@ -29,7 +29,7 @@ val_metric = 0.0
 with torch.no_grad():
     for images, masks in test_dataloader:
         images, masks = images.to(Config.DEVICE), masks.to(Config.DEVICE)
-
+        print(images.shape(),masks.shape())
         # Forward pass
         probs = torch.softmax(model(images), dim=1)  # (B, 5, D, H, W)
         pred_labels = torch.argmax(probs, dim=1)  # (B, D, H, W)

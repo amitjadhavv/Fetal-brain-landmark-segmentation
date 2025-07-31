@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore")
 
 transform = tio.Compose([
     tio.RandomFlip(axes=(0, 1, 2)),
-    tio.RandomAffine(scales=(0.95, 1.05), degrees=45),
+    tio.RandomAffine(scales=(0.85, 1.15), degrees=45),
     tio.RandomElasticDeformation(),
     tio.RandomGamma(log_gamma=(0.7, 1.3)),
     tio.RandomNoise(mean=0.0, std=0.15)
@@ -52,7 +52,7 @@ bce_loss = nn.BCEWithLogitsLoss(
 # scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-9)
 scheduler = OneCycleLR(
     optimizer,
-    max_lr=1e-4, #7e-3
+    max_lr=7e-3,
     steps_per_epoch=len(train_dataloader),
     epochs=Config.NUM_EPOCHS,
     pct_start=0.1
@@ -73,18 +73,17 @@ def combined_loss(logits, heatmaps):
         reduction='batchmean'
     )
     tv = total_variation_loss_3d(torch.softmax(logits, dim=1))
-    return 0.7 * bce + 0.2 * kl + 0.1 * tv
-early_stop_patience = 50
-epochs_without_improvement = 0
+    return 0.7 * bce + 0.3 * kl + 0.1 * tv
+
 train_loss_history = []
 val_history =[]
-best_val_metric = 1000
+best_val_metric = 100
 # # Training loop
 for epoch in range(Config.NUM_EPOCHS):
     model.train()
     start_time = time.time()
     train_loss = 0.0
-    train_metric = 1000.0
+    train_metric = 100.0
     for images, heatmaps, spacings in train_dataloader:
         images, heatmaps = images.to(Config.DEVICE), heatmaps.to(Config.DEVICE)
         # Forward pass
@@ -101,10 +100,11 @@ for epoch in range(Config.NUM_EPOCHS):
             pred_probs = torch.sigmoid(outputs)
             dist_mm = ed_mm_mixed_batch(pred_probs, heatmaps, spacings)
         # dist_mm: (B,C) – you can take mean over batch & classes
-        train_metric += dist_mm
+            mean_dist = dist_mm
+        train_metric += mean_dist
     train_loss /= len(train_dataloader)
+    train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)
-    train_loss_history.append({"loss": train_loss, "ed_mm": train_metric})
     model.eval()
     val_loss = 0.0
     val_metric = 0.0

@@ -52,7 +52,7 @@ bce_loss = nn.BCEWithLogitsLoss(
 # scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-9)
 scheduler = OneCycleLR(
     optimizer,
-    max_lr=1e-3, #7e-3
+    max_lr=1e-4, #7e-3
     steps_per_epoch=len(train_dataloader),
     epochs=Config.NUM_EPOCHS,
     pct_start=0.1
@@ -101,8 +101,7 @@ for epoch in range(Config.NUM_EPOCHS):
             pred_probs = torch.sigmoid(outputs)
             dist_mm = ed_mm_mixed_batch(pred_probs, heatmaps, spacings)
         # dist_mm: (B,C) – you can take mean over batch & classes
-            mean_dist = dist_mm
-        train_metric += mean_dist
+        train_metric += dist_mm
     train_loss /= len(train_dataloader)
     train_metric /= len(train_dataloader)
     train_loss_history.append({"loss": train_loss, "ed_mm": train_metric})
@@ -142,8 +141,6 @@ for epoch in range(Config.NUM_EPOCHS):
         if epochs_without_improvement >= early_stop_patience:
             print(f" Early stopping triggered at epoch {epoch + 1}. Best Val IoU: {best_val_metric:.4f}")
             break
-    if epoch ==400:
-        break
 model_save_path = "AV_net_model_cropped.pth"
 torch.save(model.state_dict(), model_save_path)
 print(f"Model state dictionary saved to {model_save_path}")

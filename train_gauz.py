@@ -9,7 +9,7 @@ from configs.config import Config
 from monai.losses import DiceLoss
 from utils.metrics import ed_mm_mixed_batch
 import  json
-from torch.optim.lr_scheduler import OneCycleLR
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import time
 from utils.loss import total_variation_loss_3d
 # Define augmentations using torchio
@@ -49,14 +49,14 @@ bce_loss = nn.BCEWithLogitsLoss(
     pos_weight= norm_class_weights           # optional tensor to rebalance 0/1
 )
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
-# scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-9)
-scheduler = OneCycleLR(
-    optimizer,
-    max_lr=7e-3,
-    steps_per_epoch=len(train_dataloader),
-    epochs=Config.NUM_EPOCHS,
-    pct_start=0.1
-)
+scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-7)
+# scheduler = OneCycleLR(
+#     optimizer,
+#     max_lr=7e-3,
+#     steps_per_epoch=len(train_dataloader),
+#     epochs=Config.NUM_EPOCHS,
+#     pct_start=0.1
+# )
 # scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=1e-6)
 
 def combined_loss(logits, heatmaps):
@@ -74,7 +74,8 @@ def combined_loss(logits, heatmaps):
     )
     tv = total_variation_loss_3d(torch.softmax(logits, dim=1))
     return 0.7 * bce + 0.3 * kl + 0.1 * tv
-
+early_stop_patience = 50
+epochs_without_improvement = 0
 train_loss_history = []
 val_history =[]
 best_val_metric = 100
@@ -83,7 +84,7 @@ for epoch in range(Config.NUM_EPOCHS):
     model.train()
     start_time = time.time()
     train_loss = 0.0
-    train_metric = 100.0
+    train_metric = 0
     for images, heatmaps, spacings in train_dataloader:
         images, heatmaps = images.to(Config.DEVICE), heatmaps.to(Config.DEVICE)
         # Forward pass

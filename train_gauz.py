@@ -138,11 +138,11 @@ for epoch in range(Config.NUM_EPOCHS):
     else:
         epochs_without_improvement += 1
         print(f" No improvement for {epochs_without_improvement} epochs.")
-
-    if epochs_without_improvement >= early_stop_patience:
-        print(f" Early stopping triggered at epoch {epoch + 1}. Best Val IoU: {best_val_metric:.4f}")
-        break
-    if epoch ==200:
+    if val_loss<0.05:
+        if epochs_without_improvement >= early_stop_patience:
+            print(f" Early stopping triggered at epoch {epoch + 1}. Best Val IoU: {best_val_metric:.4f}")
+            break
+    if epoch ==400:
         break
 model_save_path = "AV_net_model_cropped.pth"
 torch.save(model.state_dict(), model_save_path)

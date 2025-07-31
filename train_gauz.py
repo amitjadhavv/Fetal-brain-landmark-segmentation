@@ -130,7 +130,7 @@ for epoch in range(Config.NUM_EPOCHS):
     current_lr = scheduler.get_last_lr()[0]
     print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, train ED mm: {train_metric:.4f}, val loss:{val_loss:4f}, val ED mm:{val_metric:4f} {epoch_time:.2f} seconds, Epoch {epoch + 1} , Current LR: {current_lr}")
     scheduler.step()
-    if best_val_metric < best_val_metric:
+    if val_metric < best_val_metric:
         best_train_metric = train_metric
         torch.save(model.state_dict(), "AVnet_model_cropped_best.pth")
         print(f"Model state dictionary saved to Vnet_model_cropped_best.pth at Epoch: {epoch + 1} with ED: {train_metric:.4f}")

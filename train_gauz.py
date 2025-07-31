@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore")
 
 transform = tio.Compose([
     tio.RandomFlip(axes=(0, 1, 2)),
-    tio.RandomAffine(scales=(0.85, 1.15), degrees=45),
+    tio.RandomAffine(scales=(0.95, 1.05), degrees=45),
     tio.RandomElasticDeformation(),
     tio.RandomGamma(log_gamma=(0.7, 1.3)),
     tio.RandomNoise(mean=0.0, std=0.15)
@@ -52,7 +52,7 @@ bce_loss = nn.BCEWithLogitsLoss(
 # scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-9)
 scheduler = OneCycleLR(
     optimizer,
-    max_lr=7e-3,
+    max_lr=1e-3, #7e-3
     steps_per_epoch=len(train_dataloader),
     epochs=Config.NUM_EPOCHS,
     pct_start=0.1
@@ -73,17 +73,18 @@ def combined_loss(logits, heatmaps):
         reduction='batchmean'
     )
     tv = total_variation_loss_3d(torch.softmax(logits, dim=1))
-    return 0.7 * bce + 0.3 * kl + 0.1 * tv
-
+    return 0.7 * bce + 0.2 * kl + 0.1 * tv
+early_stop_patience = 50
+epochs_without_improvement = 0
 train_loss_history = []
 val_history =[]
-best_val_metric = 100
+best_val_metric = 1000
 # # Training loop
 for epoch in range(Config.NUM_EPOCHS):
     model.train()
     start_time = time.time()
     train_loss = 0.0
-    train_metric = 100.0
+    train_metric = 1000.0
     for images, heatmaps, spacings in train_dataloader:
         images, heatmaps = images.to(Config.DEVICE), heatmaps.to(Config.DEVICE)
         # Forward pass
@@ -103,8 +104,8 @@ for epoch in range(Config.NUM_EPOCHS):
             mean_dist = dist_mm
         train_metric += mean_dist
     train_loss /= len(train_dataloader)
-    train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)
+    train_loss_history.append({"loss": train_loss, "ed_mm": train_metric})
     model.eval()
     val_loss = 0.0
     val_metric = 0.0
@@ -129,21 +130,30 @@ for epoch in range(Config.NUM_EPOCHS):
     current_lr = scheduler.get_last_lr()[0]
     print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, train ED mm: {train_metric:.4f}, val loss:{val_loss:4f}, val ED mm:{val_metric:4f} {epoch_time:.2f} seconds, Epoch {epoch + 1} , Current LR: {current_lr}")
     scheduler.step()
-    if val_loss < 0.05:
-        if train_metric < best_val_metric:
-            best_train_metric = train_metric
-            torch.save(model.state_dict(), "Vnet_model_cropped_best1.pth")
-            print(f"Model state dictionary saved to Vnet_model_cropped_best.pth at Epoch: {epoch + 1} with ED: {train_metric:.4f}")
-model_save_path = "V_net_model_cropped1.pth"
+    if best_val_metric < best_val_metric:
+        best_train_metric = train_metric
+        torch.save(model.state_dict(), "AVnet_model_cropped_best.pth")
+        print(f"Model state dictionary saved to Vnet_model_cropped_best.pth at Epoch: {epoch + 1} with ED: {train_metric:.4f}")
+        epochs_without_improvement = 0
+    else:
+        epochs_without_improvement += 1
+        print(f" No improvement for {epochs_without_improvement} epochs.")
+
+    if epochs_without_improvement >= early_stop_patience:
+        print(f" Early stopping triggered at epoch {epoch + 1}. Best Val IoU: {best_val_metric:.4f}")
+        break
+    if epoch ==200:
+        break
+model_save_path = "AV_net_model_cropped.pth"
 torch.save(model.state_dict(), model_save_path)
 print(f"Model state dictionary saved to {model_save_path}")
-# train_loss_history = {
-#     "train_loss": train_loss_history
-# }
-# val_loss_history = {
-#     "val_loss": val_history
-# }
-# with open("train_loss_history.json", "w") as f:
-#     json.dump(train_loss_history, f)
-# with open("val_loss_history.json", "w") as f:
-#     json.dump(val_loss_history, f)
+train_loss_history = {
+    "train_loss": train_loss_history
+}
+val_loss_history = {
+    "val_loss": val_history
+}
+with open("train_loss_history.json", "w") as f:
+    json.dump(train_loss_history, f)
+with open("val_loss_history.json", "w") as f:
+    json.dump(val_loss_history, f)

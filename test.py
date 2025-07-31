@@ -14,7 +14,7 @@ test_dataloader = DataLoader(test_dataset, batch_size=Config.BATCH_SIZE, shuffle
 dice_metric = DiceMetric(include_background=True, get_not_nans=False)
 
 model = AttentionVNet(num_classes=Config.NUM_CLASSES).to(Config.DEVICE)
-model_path = "AV_net_model_cropped_best.pth"
+model_path = "AVnet_model_cropped_best.pth"
 
 state_dict = torch.load(model_path)
 # Remove 'module.' prefix if present

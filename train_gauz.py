@@ -26,7 +26,7 @@ transform = tio.Compose([
 # Load dataset
 image_paths = Config.get_image_paths()
 mask_paths = Config.get_heatmap_paths()
-train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=None, augmentation_factor=1)
+train_dataset = MRIDataset(image_paths, mask_paths, split="train", transform=None, augmentation_factor=8)
 val_dataset = MRIDataset(image_paths, mask_paths, split="val", transform=None)
 train_dataloader = DataLoader(train_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)
 val_loader = DataLoader(val_dataset,batch_size=Config.BATCH_SIZE,num_workers=8, pin_memory=True, prefetch_factor=2, persistent_workers=True)

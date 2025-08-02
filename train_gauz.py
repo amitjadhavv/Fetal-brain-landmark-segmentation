@@ -49,7 +49,7 @@ bce_loss = nn.BCEWithLogitsLoss(
     pos_weight= norm_class_weights           # optional tensor to rebalance 0/1
 )
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
-scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-6)
+scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=1e-8)
 # scheduler = OneCycleLR(
 #     optimizer,
 #     max_lr=7e-3,
@@ -131,16 +131,16 @@ for epoch in range(Config.NUM_EPOCHS):
     print(f"Epoch {epoch + 1}/{Config.NUM_EPOCHS}, Train Loss: {train_loss:.4f}, train ED mm: {train_metric:.4f}, val loss:{val_loss:4f}, val ED mm:{val_metric:4f} {epoch_time:.2f} seconds, Epoch {epoch + 1} , Current LR: {current_lr}")
     scheduler.step()
     if val_metric < best_val_metric:
-        best_train_metric = train_metric
+        best_val_metric = val_metric
         torch.save(model.state_dict(), "AVnet_model_cropped_best.pth")
-        print(f"Model state dictionary saved to Vnet_model_cropped_best.pth at Epoch: {epoch + 1} with ED: {train_metric:.4f}")
+        print(f"Model state dictionary saved to AVnet_model_cropped_best.pth at Epoch: {epoch + 1} with ED: {train_metric:.4f}")
         epochs_without_improvement = 0
     else:
         epochs_without_improvement += 1
         print(f" No improvement for {epochs_without_improvement} epochs.")
     if val_loss<0.05:
         if epochs_without_improvement >= early_stop_patience:
-            print(f" Early stopping triggered at epoch {epoch + 1}. Best Val IoU: {best_val_metric:.4f}")
+            print(f" Early stopping triggered at epoch {epoch + 1}. Best Val ED: {best_val_metric:.4f}")
             break
 model_save_path = "AV_net_model_cropped.pth"
 torch.save(model.state_dict(), model_save_path)

@@ -23,6 +23,6 @@ class Config:
     BATCH_SIZE = 32
     LEARNING_RATE = 1e-5
     NUM_CLASSES = 4
-    NUM_EPOCHS = 50
+    NUM_EPOCHS = 500
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 

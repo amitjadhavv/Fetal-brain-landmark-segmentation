@@ -18,18 +18,15 @@ Thumbs.db
 MRI_data/
 
 # Ignore logs and temporary files
-*.log
 *.tmp
 *.swp
 *.slurm
 # Ignore data files
 *.nii  # For NIfTI MRI files
-*.csv
 *.json
 *.xlsx
 
 # Ignore model files and checkpoints
 *.h5
 *.ckpt
-*.pth
 *.onnx

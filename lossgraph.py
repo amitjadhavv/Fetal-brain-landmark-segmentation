@@ -1,5 +1,4 @@
 import re
-import json
 import matplotlib.pyplot as plt
 
 # Path to the Stage II training log
@@ -49,20 +48,6 @@ with open(log_file, "r") as f:
         if es_match:
             early_stop_epoch = int(es_match.group(1))
 
-# --- Save history to JSON ---
-with open("train_loss_history.json", "w") as f:
-    json.dump({"train_loss": train_loss}, f)
-
-with open("val_loss_history.json", "w") as f:
-    json.dump({"val_loss": val_loss}, f)
-
-with open("train_ed_history.json", "w") as f:
-    json.dump({"train_ed": train_ed}, f)
-
-with open("val_ed_history.json", "w") as f:
-    json.dump({"val_ed": val_ed}, f)
-
-# --- Plot Loss Curves ---
 plt.figure(figsize=(10, 6))
 plt.plot(epochs[:len(train_loss)], train_loss, label="Train Loss", color="blue")
 plt.plot(epochs[:len(val_loss)], val_loss, label="Val Loss", color="green")
@@ -88,4 +73,4 @@ plt.legend()
 plt.grid(True, linestyle="--", alpha=0.6)
 plt.savefig("stage2_ed_curves.png", dpi=300)
 print(train_ed,val_ed,len(train_ed),len(val_ed))
-print("✅ Done: Saved loss and ED plots + JSON history files.")
+print("✅ Done: Saved loss and ED plots")

@@ -8,14 +8,12 @@ import torchio as tio
 from configs.config import Config
 from monai.losses import DiceLoss
 from utils.metrics import ed_mm_mixed_batch
-import  json
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import time
 from utils.loss import total_variation_loss_3d
-# Define augmentations using torchio
 import warnings
 warnings.filterwarnings("ignore")
-
+# Define augmentations using torchio
 transform = tio.Compose([
     tio.RandomFlip(axes=(0, 1, 2)),
     tio.RandomAffine(scales=(0.85, 1.15), degrees=45),
@@ -45,19 +43,12 @@ model = model.to(Config.DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=Config.LEARNING_RATE, weight_decay=1e-4)
 dice_loss = DiceLoss(include_background=True, softmax=True, reduction="mean", weight=norm_class_weights)
 bce_loss = nn.BCEWithLogitsLoss(
-    reduction='mean',          # default; or 'sum', or 'none'
-    pos_weight= norm_class_weights           # optional tensor to rebalance 0/1
+    reduction='mean',
+    pos_weight= norm_class_weights
 )
 # Learning Rate Scheduler (Cosine Annealing for smooth decay)
 scheduler = CosineAnnealingLR(optimizer, T_max=Config.NUM_EPOCHS, eta_min=5e-7)
-# scheduler = OneCycleLR(
-#     optimizer,
-#     max_lr=7e-3,
-#     steps_per_epoch=len(train_dataloader),
-#     epochs=Config.NUM_EPOCHS,
-#     pct_start=0.1
-# )
-# scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=1e-6)
+
 
 def combined_loss(logits, heatmaps):
     # KL loss
@@ -76,8 +67,6 @@ def combined_loss(logits, heatmaps):
     return 0.7 * bce + 0.3 * kl + 0.1 * tv
 early_stop_patience = 50
 epochs_without_improvement = 0
-train_loss_history = []
-val_history =[]
 best_val_metric = 100
 # # Training loop
 for epoch in range(Config.NUM_EPOCHS):
@@ -104,7 +93,6 @@ for epoch in range(Config.NUM_EPOCHS):
             mean_dist = dist_mm
         train_metric += mean_dist
     train_loss /= len(train_dataloader)
-    train_loss_history.append(train_loss)
     train_metric /= len(train_dataloader)
     model.eval()
     val_loss = 0.0
@@ -124,7 +112,6 @@ for epoch in range(Config.NUM_EPOCHS):
 
     val_loss /= len(val_loader)
     val_metric /= len(val_loader)
-    val_history.append({"loss": val_loss, "ed_mm": val_metric})
     end_time = time.time()  # End time tracking
     epoch_time = end_time - start_time
     current_lr = scheduler.get_last_lr()[0]
@@ -145,13 +132,3 @@ for epoch in range(Config.NUM_EPOCHS):
 model_save_path = "AV_net_model_cropped.pth"
 torch.save(model.state_dict(), model_save_path)
 print(f"Model state dictionary saved to {model_save_path}")
-train_loss_history = {
-    "train_loss": train_loss_history
-}
-val_loss_history = {
-    "val_loss": val_history
-}
-with open("train_loss_history.json", "w") as f:
-    json.dump(train_loss_history, f)
-with open("val_loss_history.json", "w") as f:
-    json.dump(val_loss_history, f)

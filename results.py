@@ -6,7 +6,7 @@ from models.AttentionVNet import AttentionVNet
 from Datasets.dataset import MRIDataset
 from utils.metrics import ed_mm_per_landmark_batch  # use the per-landmark ED function
 
-def evaluate_split(split="test", model_path="Vnet_model_cropped_best1.pth"):
+def evaluate_split(split="test", model_path="AVnet_model_cropped_best.pth", key=None):
     """
     Evaluate Attention V-Net on a dataset split ('val' or 'test')
     and return mean ± std ED per landmark and overall.

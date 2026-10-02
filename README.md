@@ -1,93 +1,117 @@
-# fetal_MRI
+# Fetal Brain MRI Landmark Detection (Attention V-Net)
 
+Automatic localisation of four anatomical landmark groups in 3D fetal brain MRI using a heatmap-regression **Attention V-Net** (PyTorch / MONAI / TorchIO).
 
+This repository contains **stage 2** of a two-stage pipeline: given a fetal-head region of interest (ROI) that has already been located and cropped (stage 1), the network predicts one 3D Gaussian heatmap per landmark type. Landmark coordinates are read from the heatmap peaks and evaluated as Euclidean distance (ED) in millimetres.
 
-## Getting started
+## Landmarks
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+| Channel | Landmark        | Peaks | Source label (after remap) |
+|--------:|-----------------|:-----:|:--------------------------:|
+| 0       | Eyes            | 2 (L/R) | 1 |
+| 1       | Nose tip        | 1 | 2 |
+| 2       | Temporal lobes  | 2 (L/R) | 3 |
+| 3       | Cerebellum      | 1 | 4 |
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+In total there are 6 points per volume. The metric averages the ED over all 6.
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+## Pipeline
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/AmitJadhavv/fetal_mri.git
-git branch -M main
-git push -uf origin main
+raw MRI + ROI mask + landmark labels
+        │  crop_roi.py          crop a cube around the ROI, remap labels (0,1,3,4,6 → 0..4)
+        ▼
+cropped_images / cropped_labels
+        │  gauz_heatmaps.py     adaptive-sigma 3D Gaussian heatmap per landmark → 4-channel NIfTI
+        ▼
+cropped_heatmaps
+        │  train_gauz.py        train Attention V-Net on 32³ volumes
+        ▼
+AVnet_model_cropped_best.pth
+        │  results.py           per-landmark ED (mm) on val / test
+        │  inference_time.py    CPU latency per volume
 ```
 
-## Integrate with your tools
+### Preprocessing details
+- **Cropping** ([crop_roi.py](crop_roi.py)): cube centred on the ROI centre of mass, side = largest ROI bounding-box extent + buffer.
+- **Heatmaps** ([gauz_heatmaps.py](gauz_heatmaps.py)): Gaussian per landmark cluster; sigma is derived from the cluster spread (`alpha=1.0`, scaling `0.6`; halved for eyes and temporal lobes, fixed `3.0` for single-voxel landmarks). Each channel is normalised to a peak of 1.
+- **Dataset** ([Datasets/dataset.py](Datasets/dataset.py)): robust 1–99 percentile clipping + min-max to [0, 1], trilinear resampling of image and heatmaps to **32×32×32**, and a per-sample mm/voxel spacing so that ED can be reported in physical units. Split is 80 / 10 / 10 (train / val / test) with a fixed seed (123).
 
-- [ ] [Set up project integrations](https://gitlab.com/AmitJadhavv/fetal_mri/-/settings/integrations)
+## Model
 
-## Collaborate with your team
+[models/AttentionVNet.py](models/AttentionVNet.py): a 3D U/V-Net-style encoder–decoder.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+- 4 encoder levels (16 → 32 → 64 → 128 channels) + 256-channel bottleneck; conv blocks use InstanceNorm, ReLU, Dropout3d(0.1).
+- A small fully-connected layer at the bottleneck (256·2³ → 512 → 256·2³) for global context.
+- Attention gates on every skip connection; trilinear upsampling in the decoder.
+- 1×1×1 output conv → 4 heatmap logits.
 
-## Test and Deploy
+## Training
 
-Use the built-in continuous integration in GitLab.
+[train_gauz.py](train_gauz.py)
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- Loss: `0.7·BCE (class-weighted) + 0.3·KL-divergence (spatial softmax) + 0.1·3D total variation` ([utils/loss.py](utils/loss.py)).
+- Adam (lr `5e-5`, weight decay `1e-4`), cosine annealing to `5e-7`, batch size 32, up to 1000 epochs, training set repeated 8× per epoch (`augmentation_factor`).
+- Validation metric: mean ED in mm; best checkpoint saved by val ED, early stopping with patience 50.
+- Multi-GPU via `DataParallel` if available.
+- A TorchIO augmentation pipeline (flip, affine, elastic, gamma, noise) is defined in the script but currently **disabled** (`transform=None`).
 
-***
+Included training log: [vnet_4ch_bce_kl1136653.log](vnet_4ch_bce_kl1136653.log) (single NVIDIA A100 40 GB, ~19 s/epoch, early-stopped at epoch 549; best val ED ≈ **1.68 mm**). Curves: `stage2_loss_curves.png`, `stage2_ed_curves.png` (generated by [lossgraph.py](lossgraph.py)).
 
-# Editing this README
+## Evaluation
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```bash
+python results.py          # per-landmark ED (mean ± std, mm) on val and test
+python inference_time.py   # average CPU inference time per volume
+```
 
-## Suggestions for a good README
+Metric ([utils/metrics.py](utils/metrics.py)): for single-peak channels (nose, cerebellum) the arg-max is compared; for two-peak channels (eyes, temporal lobes) the two strongest local maxima are matched to the ground-truth peaks. Distances are scaled by voxel spacing to mm.
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Repository layout
 
-## Name
-Choose a self-explaining name for your project.
+```
+configs/config.py        paths, hyperparameters, device
+Datasets/dataset.py      MRIDataset (loading, normalisation, resampling, splits)
+models/AttentionVNet.py  network
+utils/loss.py            total-variation loss
+utils/metrics.py         ED metrics (mean and per-landmark)
+utils/support.py         helper utilities
+crop_roi.py              ROI cube cropping + label remap
+gauz_heatmaps.py         heatmap generation
+class_weight.py          median-frequency class weights → class_weights.npy
+train_gauz.py            training
+results.py               evaluation
+inference_time.py        latency benchmark
+lossgraph.py             plot loss / ED curves from the log
+split__prediicted_heatmap_4D_to_3D.py   split a predicted 4-channel heatmap into per-channel NIfTIs
+summary.py, check.py     model summary / sanity checks
+*.pth                    trained weights (AV_net_model_cropped = last epoch, AVnet_model_cropped_best = best val ED)
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## Setup
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```bash
+pip install -r requirements.txt   # torch 2.5.1+cu118, monai, torchio, nibabel, SimpleITK, ...
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+Data is **not** included (`MRI_data/` is git-ignored). Expected layout:
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```
+MRI_data/
+├── cropped_images/     *.nii(.gz)   cropped 3D MRI
+├── cropped_labels/     *.nii(.gz)   landmark label maps (1–4)
+└── cropped_heatmaps/   *.nii(.gz)   4-channel Gaussian heatmaps (from gauz_heatmaps.py)
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Quick start:
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+```bash
+python gauz_heatmaps.py   # build heatmaps from cropped images/labels
+python train_gauz.py      # train
+python results.py         # evaluate
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Notes
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+- Several scripts ([crop_roi.py](crop_roi.py), [split__prediicted_heatmap_4D_to_3D.py](split__prediicted_heatmap_4D_to_3D.py), [Datasets/test.py](Datasets/test.py)) contain hard-coded absolute paths from the original Linux workstation; edit them before running.
+- Image/label/heatmap files are paired by sorted filename order, so keep the three folders in matching order.
